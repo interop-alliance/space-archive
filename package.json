@@ -1,7 +1,7 @@
 {
-  "name": "@interop/isomorphic-lib-template",
-  "description": "A Typescript/Javascript isomorphic library template, for use in the browser, Node.js, and React Native.",
-  "version": "0.0.1",
+  "name": "@interop/space-archive",
+  "description": "Per-Space archive codec for Wallet Attached Storage Space exports: file-name codec, manifest, packer, reader",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "build": "pnpm run clear && tsc",
@@ -36,10 +36,15 @@
   "types": "dist/index.d.ts",
   "sideEffects": false,
   "dependencies": {
+    "events": "^3.3.0",
+    "mime-types": "^3.0.2",
+    "tar-stream": "^3.2.0",
+    "yaml": "^2.9.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.60.0",
+    "@types/mime-types": "^3.0.1",
     "@types/node": "^26.0.1",
     "@vitest/coverage-v8": "^4.1.7",
     "eslint": "^10.4.0",
@@ -57,7 +62,10 @@
     "provenance": true
   },
   "keywords": [
-    "isomorphic"
+    "wallet",
+    "archive",
+    "space",
+    "wallet-attached-storage"
   ],
   "packageManager": "pnpm@11.5.0",
   "engines": {
@@ -70,8 +78,8 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/interop-alliance/isomorphic-lib-template.git"
+    "url": "git+https://github.com/interop-alliance/space-archive.git"
   },
-  "homepage": "https://github.com/interop-alliance/isomorphic-lib-template",
-  "bugs": "https://github.com/interop-alliance/isomorphic-lib-template/issues"
+  "homepage": "https://github.com/interop-alliance/space-archive",
+  "bugs": "https://github.com/interop-alliance/space-archive/issues"
 }
