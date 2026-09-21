@@ -7,7 +7,9 @@
  * These strings are permanent wire text -- an archive written under them is
  * read back by any consumer that knows them -- so they are copied verbatim
  * from the reference server that minted the dialect and are never rewritten
- * when a spec moves house.
+ * when a spec moves house. The five WAS ones were corrected once, on
+ * 2026-09-20, because they named a host the spec is not rendered at and two
+ * anchors it does not carry.
  */
 
 /**
@@ -22,32 +24,32 @@ export const UBC_MANIFEST_URL =
  * and of the `space/<spaceId>/` directory inside it.
  */
 export const SPACE_URL =
-  'https://digitalcredentials.github.io/wallet-attached-storage-spec/#spaces'
+  'https://w3c-ccg.github.io/wallet-attached-storage-spec/#spaces'
 
 /**
- * The WAS spec's Collection data model section: the `url` of a Collection
- * Metadata dot-file entry.
+ * The WAS spec's Collection Metadata data model section: the `url` of a
+ * Collection Metadata dot-file entry.
  */
 export const COLLECTION_URL =
-  'https://digitalcredentials.github.io/wallet-attached-storage-spec/#collection-data-model'
+  'https://w3c-ccg.github.io/wallet-attached-storage-spec/#collection-metadata-data-model'
 
 /**
  * The WAS spec's Resource data model section: the `url` of a Resource
  * representation entry.
  */
 export const RESOURCE_URL =
-  'https://digitalcredentials.github.io/wallet-attached-storage-spec/#resource-data-model'
+  'https://w3c-ccg.github.io/wallet-attached-storage-spec/#resource-data-model'
 
 /**
- * The WAS spec's Policy section: the `url` of an access-control policy
- * dot-file entry.
+ * The WAS spec's Access Control Policies section: the `url` of an
+ * access-control policy dot-file entry.
  */
 export const POLICY_URL =
-  'https://digitalcredentials.github.io/wallet-attached-storage-spec/#policy'
+  'https://w3c-ccg.github.io/wallet-attached-storage-spec/#access-control-policies'
 
 /**
  * The WAS spec's Resource metadata data model section: the `url` of a Resource
  * metadata sidecar entry.
  */
 export const META_URL =
-  'https://digitalcredentials.github.io/wallet-attached-storage-spec/#resource-metadata-data-model'
+  'https://w3c-ccg.github.io/wallet-attached-storage-spec/#resource-metadata-data-model'

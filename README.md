@@ -84,6 +84,11 @@ waits for the consumer to read it out before the next one is written. A `read()`
 thunk that rejects fails the pack's reader, not the `packSpaceArchive` call
 itself.
 
+`service` is optional: the exporting server's Service Description, written
+verbatim as the archive's `service.json` immediately after `manifest.yml`. An
+archive carrying one says which specification versions and feature set its
+contents were written under. Nothing in this package checks it.
+
 `packSpaceArchive` refuses the Space id `policy` (`RESERVED_SPACE_ID`), since
 its Space Metadata file name would collide with the Space's own policy file.
 
@@ -96,6 +101,7 @@ const space = await readSpaceArchive(archiveBytes) // Uint8Array, stream, or asy
 
 space.spaceId // 'zMySpace'
 space.manifest // the parsed manifest.yml document
+space.service // the exporting server's Service Description, or undefined
 
 for await (const entry of space.entries) {
   entry.name // e.g. 'space/zMySpace/collection.notes/...'
@@ -103,7 +109,8 @@ for await (const entry of space.entries) {
 }
 ```
 
-The reader parses the manifest from the first tar entry and then walks the rest
+The reader parses the manifest from the first tar entry, reads `service.json`
+when the archive carries one (the entry after it), and then walks the rest
 lazily: at most one Space archive is held in memory at a time, and the walk is
 one-shot -- iterate it once, and call each entry's `bytes()` once before moving
 to the next. A second call to `bytes()`, or one made after the walk has moved

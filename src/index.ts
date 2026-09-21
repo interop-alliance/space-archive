@@ -7,8 +7,10 @@
  * packer and the reader (`./archive`), plus the byte-source adapter and the
  * lazy tar walk they and their consumers share.
  */
-// The file-name dialect and the manifest URLs are public in full.
+// The file-name dialect, the archive path grammar, and the manifest URLs are
+// public in full.
 export * from './archive/resourceFileName.js'
+export * from './archive/archivePath.js'
 export * from './archive/manifestUrls.js'
 
 export {
@@ -26,11 +28,9 @@ export type {
 
 export {
   parseArchiveManifest,
-  parseArchivePath,
   readSpaceArchive
 } from './archive/readSpaceArchive.js'
 export type {
-  ArchivePath,
   SpaceArchive,
   SpaceArchiveManifest
 } from './archive/readSpaceArchive.js'

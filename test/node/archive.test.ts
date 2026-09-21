@@ -22,7 +22,7 @@ import {
   spaceMetadataFileName,
   tarEntries
 } from '../../src/index.js'
-import type { ByteSource, TarEntry } from '../../src/index.js'
+import type { ArchiveEntry, ByteSource, TarEntry } from '../../src/index.js'
 import {
   fixtureArchivePath,
   packFixtureArchive,
@@ -35,15 +35,20 @@ import {
 /**
  * Packs a raw tar directly (bypassing the Space archive writer), for the
  * malformed inputs the writer itself would never produce.
- * @param entries {Array<{ name: string, body: string | Uint8Array }>}
+ * @param entries {Array<{ name: string, body?: string | Uint8Array, header?: object }>}
+ *   `header` carries any further tar header fields (a `type`, a `linkname`)
  * @returns {Promise<Uint8Array>}
  */
 async function packRawTar(
-  entries: { name: string; body: string | Uint8Array }[]
+  entries: {
+    name: string
+    body?: string | Uint8Array
+    header?: Partial<tar.Header>
+  }[]
 ): Promise<Uint8Array> {
   const pack = tar.pack()
   for (const entry of entries) {
-    pack.entry({ name: entry.name }, entry.body)
+    pack.entry({ ...entry.header, name: entry.name }, entry.body ?? '')
   }
   pack.finalize()
   return collectBytes(pack as unknown as AsyncIterable<Uint8Array>)
@@ -470,6 +475,117 @@ describe('packSpaceArchive and readSpaceArchive', () => {
     expect(parseArchivePath('space/s//x')).toEqual({ area: 'other' })
   })
 
+  it("parses the writer's own space/ directory entry as spaceRoot", () => {
+    expect(parseArchivePath('space/')).toEqual({ area: 'spaceRoot' })
+    // A bare file named `space` (no trailing slash) matches nothing in the
+    // layout.
+    expect(parseArchivePath('space')).toEqual({ area: 'other' })
+  })
+
+  it('parses a directory that is not a chunk directory as other', () => {
+    // A directory nested in a Collection dir under a non-chunk-dir name.
+    expect(parseArchivePath('space/s/c/d1/')).toEqual({ area: 'other' })
+    // A directory nested inside a chunk directory.
+    expect(parseArchivePath('space/s/c/.chunks.x/d1/')).toEqual({
+      area: 'other'
+    })
+  })
+
+  it('parses revocations entries as flat files only', () => {
+    expect(parseArchivePath('revocations/')).toEqual({
+      area: 'revocations',
+      fileName: ''
+    })
+    expect(parseArchivePath('revocations/r1.json')).toEqual({
+      area: 'revocations',
+      fileName: 'r1.json'
+    })
+    expect(parseArchivePath('revocations/d1/')).toEqual({ area: 'other' })
+    expect(parseArchivePath('revocations/d1/r1.json')).toEqual({
+      area: 'other'
+    })
+  })
+
+  it('refuses an entry tree containing a shape the reader could not place', async () => {
+    const bytes = new TextEncoder().encode('x')
+    const refusedTrees: { label: string; entries: ArchiveEntry[] }[] = [
+      {
+        label: 'a directory nested deeper than a chunk directory',
+        entries: [
+          {
+            name: 'c1',
+            files: [
+              {
+                name: 'd1',
+                files: [{ name: 'd2', files: [{ name: 'f', bytes }] }]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        label:
+          'a directory in a Collection dir whose name is not a chunk directory',
+        entries: [{ name: 'c1', files: [{ name: 'd1', files: [] }] }]
+      },
+      {
+        label: 'a directory inside a chunk directory',
+        entries: [
+          {
+            name: 'c1',
+            files: [
+              { name: '.chunks.note%2E1', files: [{ name: 'sub', files: [] }] }
+            ]
+          }
+        ]
+      },
+      {
+        label: 'an entry with an empty name',
+        entries: [{ name: '', bytes }]
+      },
+      {
+        label: 'an entry name embedding a "/"',
+        entries: [{ name: 'a/b', bytes }]
+      }
+    ]
+    for (const { entries } of refusedTrees) {
+      await expect(
+        packSpaceArchive({ spaceId: 's1', entries })
+      ).rejects.toThrow()
+    }
+  })
+
+  it('parses every entry of a valid packed archive to a non-other area', async () => {
+    const bytes = new TextEncoder().encode('chunk')
+    const archive = await readSpaceArchive(
+      await collectBytes(
+        await packSpaceArchive({
+          spaceId: 's1',
+          entries: [
+            {
+              name: 'c1',
+              files: [
+                {
+                  name: '.chunks.note%2E1',
+                  files: [
+                    { name: '.meta.0.json', bytes },
+                    { name: 'r.0.text%2Fplain.txt', bytes }
+                  ]
+                },
+                { name: 'r.note%2E1.text%2Fplain.txt', bytes }
+              ]
+            }
+          ],
+          revocations: [{ name: 'r1.json', bytes }]
+        })
+      )
+    )
+
+    for await (const entry of archive.entries) {
+      expect(parseArchivePath(entry.name).area).not.toBe('other')
+    }
+  })
+
   it('refuses the reserved Space id', async () => {
     expect(() => spaceMetadataFileName('policy')).toThrow(/reserved/)
     await expect(
@@ -503,6 +619,115 @@ describe('packSpaceArchive and readSpaceArchive', () => {
       entries: [{ name: 'a', read: () => Promise.reject(new Error('gone')) }]
     })
     await expect(collectBytes(pack)).rejects.toThrow('gone')
+  })
+
+  it('writes service.json immediately after the manifest and reads it back', async () => {
+    const service = {
+      url: 'https://was.example/service',
+      specs: {
+        'https://example/was': [{ version: '0.9', features: ['export'] }]
+      }
+    }
+    const bytes = await collectBytes(
+      await packSpaceArchive({
+        spaceId: 's1',
+        entries: [{ name: '.space.s1.json', bytes: new Uint8Array() }],
+        service
+      })
+    )
+    const names: string[] = []
+    for await (const entry of tarEntries(bytes)) {
+      names.push(entry.name)
+    }
+    expect(names.slice(0, 2)).toEqual(['manifest.yml', 'service.json'])
+    expect(parseArchivePath('service.json')).toEqual({ area: 'service' })
+
+    const archive = await readSpaceArchive(bytes)
+    expect(archive.service).toEqual(service)
+    // The description is not named in the manifest, which describes the Space.
+    expect(Object.keys(archive.manifest.contents)).not.toContain('service.json')
+    const entryNames: string[] = []
+    for await (const entry of archive.entries) {
+      entryNames.push(entry.name)
+    }
+    expect(entryNames).toEqual([
+      'space/',
+      'space/s1/',
+      'space/s1/.space.s1.json'
+    ])
+  })
+
+  it('reads an archive carrying no service.json, yielding every entry once', async () => {
+    const archive = await readSpaceArchive(await packFixtureArchive())
+    expect(archive.service).toBeUndefined()
+    const names: string[] = []
+    const first = new Map<string, Uint8Array>()
+    for await (const entry of archive.entries) {
+      names.push(entry.name)
+      if (entry.type === 'file' && !first.has(entry.name)) {
+        first.set(entry.name, await entry.bytes())
+      }
+    }
+    expect(names[0]).toBe('space/')
+    expect(new Set(names).size).toBe(names.length)
+    expect(
+      JSON.parse(
+        new TextDecoder().decode(
+          first.get(`space/${FIXTURE_SPACE_ID}/.space.${FIXTURE_SPACE_ID}.json`)
+        )
+      ).id
+    ).toBe(FIXTURE_SPACE_ID)
+  })
+
+  it('refuses a service.json that is not a JSON object', async () => {
+    const bytes = await packRawTar([
+      {
+        name: 'manifest.yml',
+        body: YAML.stringify({
+          'ubc-version': '0.1',
+          contents: { space: { contents: { s1: {} } } }
+        })
+      },
+      { name: 'service.json', body: 'not json' }
+    ])
+    await expect(readSpaceArchive(bytes)).rejects.toThrow(
+      /"service.json" is not valid JSON/
+    )
+  })
+
+  it('passes on a non-file entry named service.json as content', async () => {
+    const bytes = await packRawTar([
+      {
+        name: 'manifest.yml',
+        body: YAML.stringify({
+          'ubc-version': '0.1',
+          contents: { space: { contents: { s1: {} } } }
+        })
+      },
+      {
+        name: 'service.json',
+        header: { type: 'symlink', linkname: 'elsewhere' }
+      }
+    ])
+    const archive = await readSpaceArchive(bytes)
+    expect(archive.service).toBeUndefined()
+    const entries: { name: string; type: string }[] = []
+    for await (const entry of archive.entries) {
+      entries.push({ name: entry.name, type: entry.type })
+    }
+    expect(entries).toEqual([{ name: 'service.json', type: 'symlink' }])
+  })
+
+  it('refuses a Service Description JSON cannot represent, before packing', async () => {
+    const circular: Record<string, unknown> = {}
+    circular.self = circular
+    const entries = [{ name: '.space.s1.json', bytes: new Uint8Array() }]
+    await expect(
+      packSpaceArchive({ spaceId: 's1', entries, service: circular })
+    ).rejects.toThrow(/cannot be serialized as "service.json"/)
+    await expect(
+      packSpaceArchive({ spaceId: 's1', entries, service: () => {} })
+    ).rejects.toThrow(/cannot be serialized as "service.json"/)
   })
 
   it('is byte-reproducible across two packs', async () => {

@@ -26,13 +26,41 @@ src/archive/manifestUrls.ts      The documenting URLs the archive manifest names
 src/archive/resourceFileName.ts  The on-disk file-name dialect: built, parsed, classified
 src/archive/exportManifest.ts    The archive's `manifest.yml` document
 src/archive/exportTar.ts         `packSpaceArchive`: an entry tree to a tar
-src/archive/readSpaceArchive.ts  The reader, and the archive path parser
+src/archive/archivePath.ts       The archive path grammar: parsed, and built by the packer
+src/archive/readSpaceArchive.ts  The reader
 ```
 
 The dependency direction is one way: `archive/` reads `stream.ts`,
 `tarEntries.ts`, and `errors.ts`, and none of those three know anything about
 the archive dialect. Nothing in this package reads `archive/` back; it is the
 one leaf concern the package exists to hold.
+
+## Archive layout
+
+One archive is one Space, and its entries are written in this order. The order
+is fixed, and the reader depends on the first two positions.
+
+```
+manifest.yml                       the UBC v0.1 manifest, always first
+service.json                       the exporting server's Service Description,
+                                   verbatim; absent when the exporter gave none
+revocations/                       the Space-scoped zcap revocation records;
+revocations/<record>.json          absent when the Space has none
+space/
+space/<spaceId>/
+space/<spaceId>/<file>             Space-level dot-files
+space/<spaceId>/<collectionId>/
+space/<spaceId>/<collectionId>/<file>
+space/<spaceId>/<collectionId>/.chunks.<encodedResourceId>/<chunkFile>
+```
+
+`service.json` is informational. It travels so an importer can read which
+specification versions and feature set the contents were written under -- an
+account's Spaces may live on different servers -- and decide what to do with
+them, or refuse, before writing anything. This codec neither checks it nor acts
+on it: the writer takes the object and serializes it, the reader parses it and
+hands it over. It is not named in the manifest's `contents`, which describes the
+Space being exported rather than the server that exported it.
 
 ## Invariants
 
@@ -46,7 +74,11 @@ one leaf concern the package exists to hold.
    two packs of an unchanged entry tree are byte-identical. Upheld by
    `exportTar.ts`, and pinned by the checked-in fixture under
    `test/fixtures/space-archive/`, which the WAS reference server's own export
-   is compared against by a counterpart test.
+   is compared against by a counterpart test. The fixture carries no
+   `service.json`: a Service Description is the exporting deployment's, not the
+   layout's, so pinning one would pin a server version into the tree the
+   counterpart test stages. The entry's position is pinned by a node test
+   instead.
 3. **Nothing large is held whole.** The reader parses its manifest from the
    first tar entry and then walks the rest lazily, so at most one Space archive
    is in memory at a time. The packer mirrors this on the write side:
@@ -72,7 +104,9 @@ one leaf concern the package exists to hold.
 6. **Manifest URLs are permanent wire text.** The six exported URL constants
    (`UBC_MANIFEST_URL`, `SPACE_URL`, `COLLECTION_URL`, `RESOURCE_URL`,
    `POLICY_URL`, `META_URL`) are copied verbatim from the spec sections they
-   document and are never rewritten when a spec moves house.
+   document and are never rewritten when a spec moves house. They were corrected
+   once, on 2026-09-20, because the five WAS ones named a host the spec is not
+   rendered at and two anchors it does not carry.
 7. **Error names are the contract.** `BundleInvalidError` sets its own `name`,
    and a consumer in another package tells it apart by `err.name`, never by
    `instanceof`, since two copies of this package in one dependency tree carry
@@ -109,6 +143,11 @@ one leaf concern the package exists to hold.
 - **Byte source** -- anything the reader accepts as input bytes: a `Uint8Array`,
   a web `ReadableStream`, or an async iterable of chunks. Lives in
   `src/stream.ts`. Avoid: input stream, reader, source stream.
+- **Service Description entry** -- the archive's `service.json`: the exporting
+  server's Service Description, carried verbatim beside `manifest.yml`. Written
+  from `packSpaceArchive`'s optional `service` option, read back as
+  `SpaceArchive.service`. Avoid: service manifest, server description, service
+  doc.
 - **Reserved Space id** -- the Space id `policy`. Refused by
   `spaceMetadataFileName` and `packSpaceArchive` because its Space Metadata file
   name would be `.space.policy.json`, the same name as the Space's own policy

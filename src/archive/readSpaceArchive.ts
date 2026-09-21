@@ -9,9 +9,9 @@
  * a Space archive is the largest thing in a backup bundle and is never held
  * whole.
  *
- * The path parser here reads an entry's path through the very codec the writer
- * names it with (`resourceFileName.ts`, which also classifies a file name), so
- * a reader and a writer can never disagree about what a name means.
+ * The archive path grammar -- root directory names, the `ArchivePath` type and
+ * its parser -- lives in `archivePath.ts`, shared with the writer so a reader
+ * and a writer can never disagree about what a path means.
  */
 import YAML from 'yaml'
 import { BundleInvalidError } from '../errors.js'
@@ -19,11 +19,10 @@ import { tarEntries } from '../tarEntries.js'
 import type { TarEntry } from '../tarEntries.js'
 import type { ByteSource } from '../stream.js'
 import {
-  parseChunkDirName,
   ARCHIVE_MANIFEST_FILE,
-  ARCHIVE_REVOCATIONS_DIR,
+  ARCHIVE_SERVICE_FILE,
   ARCHIVE_SPACE_DIR
-} from './resourceFileName.js'
+} from './archivePath.js'
 
 /**
  * A Space archive's `manifest.yml`, as parsed. Only the two members the reader
@@ -46,6 +45,15 @@ export interface SpaceArchiveManifest {
 export interface SpaceArchive {
   spaceId: string
   manifest: SpaceArchiveManifest
+  /**
+   * The exporting server's Service Description, read verbatim from the
+   * archive's `service.json`. `undefined` for an archive that carries none --
+   * every archive written before the entry existed, and every export by a
+   * server with no description to declare. Informational: it says which
+   * specification versions and features the contents were written under, and
+   * this codec neither checks it nor acts on it.
+   */
+  service?: Record<string, unknown>
   entries: AsyncIterable<TarEntry>
   close: () => Promise<void>
 }
@@ -132,9 +140,75 @@ export function parseArchiveManifest({
 }
 
 /**
+ * Parses the archive's `service.json` body: the exporting server's Service
+ * Description, carried verbatim. Refuses bytes that are not a JSON object,
+ * since an entry under that name that is not one is a malformed archive rather
+ * than a description this reader may pass on.
+ * @param bytes {Uint8Array}
+ * @returns {Record<string, unknown>}
+ */
+function parseServiceDescription(bytes: Uint8Array): Record<string, unknown> {
+  let document: unknown
+  try {
+    document = JSON.parse(new TextDecoder().decode(bytes))
+  } catch (err) {
+    throw new BundleInvalidError(
+      `The Space archive's "${ARCHIVE_SERVICE_FILE}" is not valid JSON.`,
+      { cause: err }
+    )
+  }
+  if (!isMapping(document)) {
+    throw new BundleInvalidError(
+      `The Space archive's "${ARCHIVE_SERVICE_FILE}" is not an object.`
+    )
+  }
+  return document
+}
+
+/**
+ * Yields one entry already pulled off the tar walk, then the rest of it. The
+ * service-description peek reads one entry ahead, and this hands that entry
+ * back to the caller in its place in the walk. Written as an iterator object
+ * rather than a generator so that a `return()` before the first `next()` still
+ * tears the walk down: a generator that has not started runs no `finally`.
+ * @param options {object}
+ * @param options.pending {TarEntry}
+ * @param options.walk {AsyncGenerator<TarEntry>}
+ * @returns {AsyncIterableIterator<TarEntry>}
+ */
+function replay({
+  pending,
+  walk
+}: {
+  pending: TarEntry
+  walk: AsyncGenerator<TarEntry>
+}): AsyncIterableIterator<TarEntry> {
+  let replayed = false
+  const iterator: AsyncIterableIterator<TarEntry> = {
+    [Symbol.asyncIterator]() {
+      return iterator
+    },
+    async next() {
+      if (replayed) {
+        return walk.next()
+      }
+      replayed = true
+      return { done: false, value: pending }
+    },
+    async return() {
+      await walk.return(undefined)
+      return { done: true, value: undefined }
+    }
+  }
+  return iterator
+}
+
+/**
  * Opens a Space export archive: reads its `manifest.yml` (the first entry) and
- * hands back the manifest, the Space id it describes, and a one-shot lazy walk
- * of everything after it. The walk consumes the source as it goes, so it is
+ * the exporting server's `service.json` where the archive carries one (the
+ * entry immediately after), and hands back the manifest, that description, the
+ * Space id the manifest describes, and a one-shot lazy walk of everything
+ * after them. The walk consumes the source as it goes, so it is
  * iterated once and each entry's `bytes()` is called before the walk advances.
  * Bytes that are not a tar are refused with a `BundleInvalidError`.
  * @param source {ByteSource}   the archive's tar bytes, or a stream of them
@@ -168,92 +242,34 @@ export async function readSpaceArchive(
     await walk.return(undefined)
   }
 
-  // The walk is handed back as it stands: the manifest read has started it,
-  // so leaving the loop (or `close()`) runs its teardown.
-  return { spaceId, manifest, entries: walk, close }
-}
+  // The writer places `service.json` immediately after the manifest, so one
+  // peek settles whether the archive carries one. An archive without it opens
+  // on its first content entry, which the walk below then yields.
+  let service: Record<string, unknown> | undefined
+  let pending: TarEntry | undefined
+  const second = await walk.next()
+  if (!second.done) {
+    // Only a regular file is the description; a symlink or other entry type
+    // under that name is content, passed on like any other entry.
+    if (
+      second.value.name === ARCHIVE_SERVICE_FILE &&
+      second.value.type === 'file'
+    ) {
+      try {
+        service = parseServiceDescription(await second.value.bytes())
+      } catch (err) {
+        await walk.return(undefined)
+        throw err
+      }
+    } else {
+      pending = second.value
+    }
+  }
 
-/**
- * Where one archive path sits in the archive tree. A directory entry carries
- * the same shape as the file entries under it, minus a `fileName`; the caller
- * tells the two apart by the entry's `type`.
- */
-export type ArchivePath =
-  | { area: 'manifest' }
-  | { area: 'space'; spaceId: string; fileName: string }
-  | {
-      area: 'collection'
-      spaceId: string
-      collectionId: string
-      fileName: string
-    }
-  | {
-      area: 'chunk'
-      spaceId: string
-      collectionId: string
-      resourceId: string
-      fileName: string
-    }
-  | { area: 'revocations'; fileName: string }
-  | { area: 'other' }
-
-/**
- * Parses an archive entry path into the tree position it addresses. A trailing
- * slash marks a directory entry, which parses as that directory with an empty
- * `fileName`: `space/<id>/<c>/` is the Collection directory `<c>`, where
- * `space/<id>/<name>` without the slash is a file of the Space directory. A
- * path with an empty segment, or one deeper than the layout goes, is `other`.
- * @param path {string}
- * @returns {ArchivePath}
- */
-export function parseArchivePath(path: string): ArchivePath {
-  const isDirectory = path.endsWith('/')
-  const trimmed = isDirectory ? path.slice(0, -1) : path
-  if (trimmed === ARCHIVE_MANIFEST_FILE) {
-    return { area: 'manifest' }
-  }
-  const segments = trimmed.split('/')
-  if (segments.includes('')) {
-    return { area: 'other' }
-  }
-  const [root, ...rest] = segments
-  if (root === ARCHIVE_REVOCATIONS_DIR) {
-    return { area: 'revocations', fileName: rest.join('/') }
-  }
-  if (root !== ARCHIVE_SPACE_DIR) {
-    return { area: 'other' }
-  }
-  const [spaceId, second, third, fourth] = rest
-  // A chunk file is the deepest path the layout holds.
-  if (!spaceId || rest.length > 4) {
-    return { area: 'other' }
-  }
-  if (second === undefined) {
-    return { area: 'space', spaceId, fileName: '' }
-  }
-  if (third === undefined) {
-    // The only directories a Space directory holds are its Collections.
-    return isDirectory
-      ? { area: 'collection', spaceId, collectionId: second, fileName: '' }
-      : { area: 'space', spaceId, fileName: second }
-  }
-  const chunkResourceId = parseChunkDirName(third)
-  if (chunkResourceId !== undefined) {
-    return {
-      area: 'chunk',
-      spaceId,
-      collectionId: second,
-      resourceId: chunkResourceId,
-      fileName: fourth ?? ''
-    }
-  }
-  if (fourth !== undefined) {
-    return { area: 'other' }
-  }
-  return {
-    area: 'collection',
-    spaceId,
-    collectionId: second,
-    fileName: third
-  }
+  // The walk is handed back as it stands: the reads above have started it, so
+  // leaving the loop (or `close()`) runs its teardown. An entry already pulled
+  // off it is yielded ahead of the rest, so the caller sees every content
+  // entry exactly once.
+  const entries = pending === undefined ? walk : replay({ pending, walk })
+  return { spaceId, manifest, service, entries, close }
 }

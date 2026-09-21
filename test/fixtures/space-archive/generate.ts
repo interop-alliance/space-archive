@@ -14,6 +14,11 @@
  * Resource representation and that Resource's metadata sidecar, and one
  * Space-scoped revocation record.
  *
+ * The fixture carries no `service.json`. A Service Description belongs to the
+ * exporting deployment rather than to the layout, so putting one here would pin
+ * a server version and a feature list into the tree the counterpart test
+ * stages. The entry's position is pinned by a node test instead.
+ *
  * Every file name in the tree is written out literally and none comes from the
  * file-name codec's builders. The fixture pins the names on the wire, so it
  * stays independent of the code it checks. A node test asserts each builder
@@ -81,7 +86,19 @@ function fixtureEntries(): ArchiveEntry[] {
       document: {
         id: FIXTURE_SPACE_ID,
         controller: 'did:key:z6MkfixtureController',
-        type: ['Space']
+        type: ['Space'],
+        // The Space Metadata entry travels as the object a server serves, so
+        // it carries the server-derived `backends` listing. The counterpart
+        // server exports a single server-configured filesystem backend, which
+        // is what the fixture pins here.
+        backends: [
+          {
+            id: 'default',
+            name: 'Server Filesystem',
+            managedBy: 'server',
+            persistence: 'durable'
+          }
+        ]
       }
     }),
     {

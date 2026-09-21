@@ -5,8 +5,11 @@
  * (`r.<resourceId>.<encodedContentType>.<ext>`), a chunk directory
  * (`.chunks.<encodedResourceId>/`), and the JSON dot-files that carry the
  * Space / Collection descriptions, the access-control policies, and the
- * Resource metadata sidecars. Kept low-level (no imports from the rest of
- * `src/archive/`) so every consumer can depend on it without an import cycle.
+ * Resource metadata sidecars. The archive path grammar -- the root directory
+ * names, and the parser and builder for a whole archive path -- lives in
+ * `archivePath.ts`, which imports `parseChunkDirName` from here. Kept
+ * low-level (no imports from the rest of `src/archive/`) so every consumer
+ * can depend on it without an import cycle.
  */
 import * as mime from 'mime-types'
 
@@ -243,22 +246,6 @@ export const META_FILE_PREFIX = '.meta.'
  * metadata import branches.
  */
 export const COLLECTION_LOG_FILE_PREFIX = '.collectionlog.'
-
-/**
- * The archive's own manifest file name, the first entry of every archive.
- */
-export const ARCHIVE_MANIFEST_FILE = 'manifest.yml'
-
-/**
- * The archive's top-level directory holding the `<spaceId>/` tree.
- */
-export const ARCHIVE_SPACE_DIR = 'space'
-
-/**
- * The archive's top-level directory holding the Space-scoped zcap revocation
- * records; absent when the Space has none.
- */
-export const ARCHIVE_REVOCATIONS_DIR = 'revocations'
 
 /**
  * The Space id the layout reserves: its Space Metadata file name would be

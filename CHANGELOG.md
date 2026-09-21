@@ -1,5 +1,36 @@
 # @interop/space-archive Changelog
 
+## 0.2.0 - TBD
+
+### Added
+
+- The archive carries the exporting server's Service Description verbatim as
+  `service.json`, written immediately after `manifest.yml`. `packSpaceArchive`
+  takes it as the optional `service` option, and `readSpaceArchive` hands it
+  back as `SpaceArchive.service` (`undefined` for an archive that carries none,
+  so older archives read unchanged). It is informational: an importer can read
+  which specification versions and feature set the contents were written under,
+  and this codec neither checks it nor acts on it.
+- `ARCHIVE_SERVICE_FILE`, and the `service` area of `parseArchivePath`.
+- The checked-in fixture archive's Space Metadata entry carries the server's
+  `backends` listing, matching what the reference server now exports.
+
+### Changed
+
+- `readSpaceArchive` reads one entry past the manifest before returning (the
+  `service.json` peek), so a tar truncated right after the manifest is refused
+  by `readSpaceArchive` itself instead of while iterating `entries`.
+- `packSpaceArchive` refuses a `service` value JSON cannot represent before any
+  pack is created.
+
+### Fixed
+
+- The manifest's five WAS spec URLs name the spec's rendered host
+  (`https://w3c-ccg.github.io/wallet-attached-storage-spec/`) and, for the
+  Collection Metadata and policy entries, anchors the spec carries
+  (`#collection-metadata-data-model`, `#access-control-policies`). The
+  checked-in fixture is regenerated under the corrected values.
+
 ## 0.1.0 - 2026-09-18
 
 ### Added

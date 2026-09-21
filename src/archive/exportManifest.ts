@@ -6,6 +6,11 @@
  * module is the single home for the manifest that describes it.
  */
 import {
+  ARCHIVE_MANIFEST_FILE,
+  ARCHIVE_REVOCATIONS_DIR,
+  ARCHIVE_SPACE_DIR
+} from './archivePath.js'
+import {
   UBC_MANIFEST_URL,
   SPACE_URL,
   COLLECTION_URL,
@@ -13,12 +18,7 @@ import {
   POLICY_URL,
   META_URL
 } from './manifestUrls.js'
-import {
-  classifyCollectionFile,
-  ARCHIVE_MANIFEST_FILE,
-  ARCHIVE_REVOCATIONS_DIR,
-  ARCHIVE_SPACE_DIR
-} from './resourceFileName.js'
+import { classifyCollectionFile } from './resourceFileName.js'
 import type { CollectionFileKind } from './resourceFileName.js'
 
 /**
