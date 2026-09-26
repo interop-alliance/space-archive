@@ -20,6 +20,7 @@
   },
   "files": [
     "dist",
+    "fixtures",
     "README.md",
     "LICENSE.md"
   ],
@@ -29,7 +30,8 @@
       "react-native": "./dist/index.js",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
-    }
+    },
+    "./fixtures/space-archive.tar": "./fixtures/space-archive.tar"
   },
   "module": "dist/index.js",
   "browser": "dist/index.js",

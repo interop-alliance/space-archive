@@ -4,12 +4,17 @@
 /**
  * Generator for the checked-in Space archive fixture: a small fixed entry tree
  * packed by this package's own writer. Run it with
- * `npx tsx test/fixtures/space-archive/generate.ts` to rewrite the tar.
+ * `npx tsx test/fixtures/space-archive/generate.ts` to rewrite the tar, which
+ * lives at `fixtures/space-archive.tar` under the package root.
  *
  * The fixture exists so a counterpart test in another implementation (the WAS
  * reference server, which builds these trees out of its two storage backends)
- * can assert its export of the same tree is byte-identical to this one. The
- * tree is therefore fixed and deliberately boring: one Space Metadata
+ * can assert its export of the same tree is byte-identical to this one. It is
+ * published with the package, reachable as the subpath export
+ * `@interop/space-archive/fixtures/space-archive.tar`, so a counterpart test
+ * pins against the bytes of the version it depends on rather than against a
+ * checkout it has to find on disk. The tree is fixed and deliberately boring:
+ * one Space Metadata
  * dot-file, one Collection holding its Metadata, its governing history log, a
  * Resource representation and that Resource's metadata sidecar, and one
  * Space-scoped revocation record.
@@ -54,9 +59,10 @@ export const FIXTURE_REPRESENTATION_FILE_NAME =
   'r.note%2E1.application%2Fjson.json'
 
 /**
- * The fixture archive's file name, relative to this directory.
+ * The fixture archive's path, relative to this directory: it lives under the
+ * package root's `fixtures/`, the directory the package publishes.
  */
-const FIXTURE_ARCHIVE_FILE = 'space-archive.tar'
+const FIXTURE_ARCHIVE_FILE = '../../../fixtures/space-archive.tar'
 
 /**
  * Encodes one fixed JSON document as the bytes of an archive file.

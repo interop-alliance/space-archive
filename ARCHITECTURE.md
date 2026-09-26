@@ -72,13 +72,16 @@ Space being exported rather than the server that exported it.
 2. **The packer's output is byte-stable.** Every tar header carries the epoch
    `mtime` (`EXPORT_ENTRY_MTIME`) and entries are written in a fixed order, so
    two packs of an unchanged entry tree are byte-identical. Upheld by
-   `exportTar.ts`, and pinned by the checked-in fixture under
-   `test/fixtures/space-archive/`, which the WAS reference server's own export
-   is compared against by a counterpart test. The fixture carries no
-   `service.json`: a Service Description is the exporting deployment's, not the
-   layout's, so pinning one would pin a server version into the tree the
-   counterpart test stages. The entry's position is pinned by a node test
-   instead.
+   `exportTar.ts`, and pinned by the checked-in fixture
+   `fixtures/space-archive.tar` (rewritten by
+   `test/fixtures/space-archive/generate.ts`), which the WAS reference server's
+   own export is compared against by a counterpart test. The fixture is
+   published with the package, as the subpath export
+   `@interop/space-archive/fixtures/space-archive.tar`, so that test pins
+   against the version it depends on. The fixture carries no `service.json`: a
+   Service Description is the exporting deployment's, not the layout's, so
+   pinning one would pin a server version into the tree the counterpart test
+   stages. The entry's position is pinned by a node test instead.
 3. **Nothing large is held whole.** The reader parses its manifest from the
    first tar entry and then walks the rest lazily, so at most one Space archive
    is in memory at a time. The packer mirrors this on the write side:

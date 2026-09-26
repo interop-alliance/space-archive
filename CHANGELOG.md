@@ -1,5 +1,16 @@
 # @interop/space-archive Changelog
 
+## 0.2.1 - TBD
+
+### Added
+
+- The checked-in fixture archive is published with the package, as the subpath
+  export `@interop/space-archive/fixtures/space-archive.tar`, so a counterpart
+  test in a consuming implementation pins against the fixture of the version it
+  depends on. The tar moved from `test/fixtures/space-archive/` to `fixtures/`
+  under the package root; `test/fixtures/space-archive/generate.ts` still
+  rewrites it.
+
 ## 0.2.0 - 2026-09-20
 
 ### Added
