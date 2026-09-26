@@ -1,7 +1,7 @@
 {
   "name": "@interop/space-archive",
   "description": "Per-Space archive codec for Wallet Attached Storage Space exports: file-name codec, manifest, packer, reader",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "scripts": {
     "build": "pnpm run clear && tsc",
