@@ -1,5 +1,14 @@
 # @interop/space-archive Changelog
 
+## 0.3.0 - TBD
+
+### Added
+
+- `collectionMetadataFromFile({ bytes })` and `spaceMetadataFromFile({ bytes })`
+  read a Metadata file's body into the stored Metadata object. They remove the
+  embedded `_generation` / `_version` validator members. A body that is not a
+  JSON object is refused with `BundleInvalidError`.
+
 ## 0.2.1 - 2026-09-25
 
 ### Added

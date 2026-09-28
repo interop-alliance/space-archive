@@ -118,14 +118,30 @@ past that entry, rejects. Bytes that are not a tar, or a truncated archive, are
 refused with a `BundleInvalidError`. A caller that opens an archive and never
 iterates `entries` calls `space.close()` to release the underlying source.
 
+A Metadata file stores its object with the validator embedded as `_generation` /
+`_version`. `collectionMetadataFromFile({ bytes })` and
+`spaceMetadataFromFile({ bytes })` read one back without those two members:
+
+```js
+import {
+  classifyCollectionFile,
+  collectionMetadataFromFile
+} from '@interop/space-archive'
+
+if (classifyCollectionFile(fileName).kind === 'collectionMetadata') {
+  const metadata = collectionMetadataFromFile({ bytes: await entry.bytes() })
+  metadata.generator // the app the Collection was provisioned for, if any
+}
+```
+
 ## Exports
 
 The package's root export is documented in [ARCHITECTURE.md](ARCHITECTURE.md);
 in short: the archive codec (`packSpaceArchive`, `readSpaceArchive`, the
-manifest and file-name helpers), the `BundleInvalidError` the reader raises on a
-malformed archive, and the byte-source (`ByteSource`, `byteChunks`,
-`collectBytes`) and tar-walk (`tarEntries`, `TarEntry`) helpers a caller needs
-to build or consume a `ByteSource`.
+manifest, file-name, and Metadata file helpers), the `BundleInvalidError` the
+reader raises on a malformed archive, and the byte-source (`ByteSource`,
+`byteChunks`, `collectBytes`) and tar-walk (`tarEntries`, `TarEntry`) helpers a
+caller needs to build or consume a `ByteSource`.
 
 ## Contribute
 

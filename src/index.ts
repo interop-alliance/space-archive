@@ -19,6 +19,11 @@ export {
 } from './archive/exportManifest.js'
 export type { ExportSpaceEntry } from './archive/exportManifest.js'
 
+export {
+  collectionMetadataFromFile,
+  spaceMetadataFromFile
+} from './archive/metadataFile.js'
+
 export { packSpaceArchive } from './archive/exportTar.js'
 export type {
   ArchiveDirectory,

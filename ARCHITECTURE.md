@@ -24,6 +24,7 @@ src/tarEntries.ts         The lazy tar walk the reader shares with its consumers
 
 src/archive/manifestUrls.ts      The documenting URLs the archive manifest names
 src/archive/resourceFileName.ts  The on-disk file-name dialect: built, parsed, classified
+src/archive/metadataFile.ts      A Metadata file's body read back, validator removed
 src/archive/exportManifest.ts    The archive's `manifest.yml` document
 src/archive/exportTar.ts         `packSpaceArchive`: an entry tree to a tar
 src/archive/archivePath.ts       The archive path grammar: parsed, and built by the packer
