@@ -38,7 +38,7 @@
   "types": "dist/index.d.ts",
   "sideEffects": false,
   "dependencies": {
-    "@interop/storage-core": "^0.20.0",
+    "@interop/storage-core": "^0.21.0",
     "events": "^3.3.0",
     "mime-types": "^3.0.2",
     "tar-stream": "^3.2.0",
