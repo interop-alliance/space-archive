@@ -1,5 +1,18 @@
 # @interop/space-archive Changelog
 
+## 0.4.0 - TBD
+
+### Added
+
+- `collectionGeneratorFromMetadata(metadata)` reads a Collection Metadata
+  object's `generator`. It yields `undefined` when the member is absent or
+  malformed.
+- `policyFromFile({ bytes })` reads a policy file's body into its policy
+  document. A body that is not a JSON object with a string `type` is refused
+  with `BundleInvalidError`.
+- Depends on `@interop/storage-core` for the `CollectionGenerator` and
+  `PolicyDocument` types.
+
 ## 0.3.0 - 2026-09-28
 
 ### Added

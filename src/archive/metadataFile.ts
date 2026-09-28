@@ -10,9 +10,12 @@
  * write, so the validator survives an export and import round trip. A reader
  * that wants the object itself strips those two members here.
  *
- * This codec knows no Metadata schema. The result is a plain JSON object, and
- * checking its members is the caller's concern.
+ * The readers know no Metadata schema. The result is a plain JSON object, and
+ * checking its members is the caller's concern. The one exception is
+ * `collectionGeneratorFromMetadata`, which checks the `generator` member's
+ * shape for a caller that hands it on.
  */
+import type { CollectionGenerator } from '@interop/storage-core'
 import { BundleInvalidError } from '../errors.js'
 
 /**
@@ -89,4 +92,40 @@ export function spaceMetadataFromFile({
   bytes: Uint8Array
 }): Record<string, unknown> {
   return metadataFromFile({ bytes, label: 'Space Metadata file' })
+}
+
+/**
+ * Reads the `generator` out of a Collection Metadata object, as
+ * `collectionMetadataFromFile` returns it. A `generator` that is absent, is
+ * not an object, has no string `id`, or has an `origin`, `url` or `name` that
+ * is not a string yields `undefined`.
+ *
+ * @param metadata {Record<string, unknown>}
+ * @returns {CollectionGenerator | undefined}
+ */
+export function collectionGeneratorFromMetadata(
+  metadata: Record<string, unknown>
+): CollectionGenerator | undefined {
+  const candidate = metadata.generator
+  if (typeof candidate !== 'object' || candidate === null) {
+    return undefined
+  }
+  const members = candidate as Record<string, unknown>
+  if (typeof members.id !== 'string') {
+    return undefined
+  }
+  const generator: CollectionGenerator = {
+    id: members.id as CollectionGenerator['id']
+  }
+  for (const member of ['origin', 'url', 'name'] as const) {
+    const value = members[member]
+    if (value === undefined) {
+      continue
+    }
+    if (typeof value !== 'string') {
+      return undefined
+    }
+    generator[member] = value
+  }
+  return generator
 }

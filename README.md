@@ -134,14 +134,19 @@ if (classifyCollectionFile(fileName).kind === 'collectionMetadata') {
 }
 ```
 
+`collectionGeneratorFromMetadata(metadata)` returns that `generator` when it is
+well formed, and `undefined` otherwise. `policyFromFile({ bytes })` reads a
+policy file into its policy document, such as `{ type: 'PublicCanRead' }`.
+
 ## Exports
 
 The package's root export is documented in [ARCHITECTURE.md](ARCHITECTURE.md);
 in short: the archive codec (`packSpaceArchive`, `readSpaceArchive`, the
-manifest, file-name, and Metadata file helpers), the `BundleInvalidError` the
-reader raises on a malformed archive, and the byte-source (`ByteSource`,
-`byteChunks`, `collectBytes`) and tar-walk (`tarEntries`, `TarEntry`) helpers a
-caller needs to build or consume a `ByteSource`.
+manifest, file-name, Metadata file, and policy file helpers), the
+`BundleInvalidError` the reader raises on a malformed archive, and the
+byte-source (`ByteSource`, `byteChunks`, `collectBytes`) and tar-walk
+(`tarEntries`, `TarEntry`) helpers a caller needs to build or consume a
+`ByteSource`.
 
 ## Contribute
 

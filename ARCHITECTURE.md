@@ -25,6 +25,7 @@ src/tarEntries.ts         The lazy tar walk the reader shares with its consumers
 src/archive/manifestUrls.ts      The documenting URLs the archive manifest names
 src/archive/resourceFileName.ts  The on-disk file-name dialect: built, parsed, classified
 src/archive/metadataFile.ts      A Metadata file's body read back, validator removed
+src/archive/policyFile.ts        A policy file's body read back as its policy document
 src/archive/exportManifest.ts    The archive's `manifest.yml` document
 src/archive/exportTar.ts         `packSpaceArchive`: an entry tree to a tar
 src/archive/archivePath.ts       The archive path grammar: parsed, and built by the packer
@@ -101,17 +102,13 @@ Space being exported rather than the server that exported it.
    `events-universal`) call `require('events')` without declaring a package that
    provides it outside Node. A bundler resolves that call to the `events`
    package declared here. Without it the browser spec fails inside `tar-stream`.
-5. **No `@interop/*` dependency.** This package depends on `tar-stream`, `yaml`,
-   `mime-types`, and `events` only, so a consumer that needs just the codec --
-   the WAS reference server -- installs none of `@interop/wallet-core`,
-   `@interop/was-client`, or the packages those pull in.
-6. **Manifest URLs are permanent wire text.** The six exported URL constants
+5. **Manifest URLs are permanent wire text.** The six exported URL constants
    (`UBC_MANIFEST_URL`, `SPACE_URL`, `COLLECTION_URL`, `RESOURCE_URL`,
    `POLICY_URL`, `META_URL`) are copied verbatim from the spec sections they
    document and are never rewritten when a spec moves house. They were corrected
    once, on 2026-09-20, because the five WAS ones named a host the spec is not
    rendered at and two anchors it does not carry.
-7. **Error names are the contract.** `BundleInvalidError` sets its own `name`,
+6. **Error names are the contract.** `BundleInvalidError` sets its own `name`,
    and a consumer in another package tells it apart by `err.name`, never by
    `instanceof`, since two copies of this package in one dependency tree carry
    two distinct classes for the same failure. It covers bytes that are not a

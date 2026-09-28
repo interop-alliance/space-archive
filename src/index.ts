@@ -20,9 +20,11 @@ export {
 export type { ExportSpaceEntry } from './archive/exportManifest.js'
 
 export {
+  collectionGeneratorFromMetadata,
   collectionMetadataFromFile,
   spaceMetadataFromFile
 } from './archive/metadataFile.js'
+export { policyFromFile } from './archive/policyFile.js'
 
 export { packSpaceArchive } from './archive/exportTar.js'
 export type {
