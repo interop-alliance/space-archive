@@ -1,6 +1,6 @@
 # @interop/space-archive Changelog
 
-## 0.4.1 - TBD
+## 0.4.1 - 2026-09-28
 
 ### Changed
 
