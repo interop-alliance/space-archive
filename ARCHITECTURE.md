@@ -56,6 +56,15 @@ space/<spaceId>/<collectionId>/<file>
 space/<spaceId>/<collectionId>/.chunks.<encodedResourceId>/<chunkFile>
 ```
 
+A chunk directory's entries are packed together. `packDirectory`
+(`src/archive/exportTar.ts`) writes the directory entry and then every file
+under it before any other entry, so no other entry falls between them. Where the
+directory sits relative to its Resource's representation file is not fixed. The
+profile spec now requires this contiguity of every writer, and a reader may
+refuse an archive that splits a directory. The migration walk in
+`@interop/wallet-backup` depends on it to buffer one Resource's chunks at a
+time.
+
 `service.json` is informational. It travels so an importer can read which
 specification versions and feature set the contents were written under -- an
 account's Spaces may live on different servers -- and decide what to do with
