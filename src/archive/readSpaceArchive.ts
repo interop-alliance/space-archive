@@ -19,7 +19,9 @@ import { tarEntries } from '../tarEntries.js'
 import type { TarEntry } from '../tarEntries.js'
 import type { ByteSource } from '../stream.js'
 import {
+  ARCHIVE_DID_LOG_FILE,
   ARCHIVE_MANIFEST_FILE,
+  ARCHIVE_PROVENANCE_FILE,
   ARCHIVE_SERVICE_FILE,
   ARCHIVE_SPACE_DIR
 } from './archivePath.js'
@@ -54,6 +56,19 @@ export interface SpaceArchive {
    * this codec neither checks it nor acts on it.
    */
   service?: Record<string, unknown>
+  /**
+   * The exporting server's provenance statements, the verbatim bytes of the
+   * archive's `provenance.jsonl` (one JSON statement per line). `undefined`
+   * for an archive that carries none. Not parsed or verified here: whether a
+   * statement holds is the importer's decision.
+   */
+  provenance?: Uint8Array
+  /**
+   * The exporting server's DID history log snapshot, the verbatim bytes of
+   * the archive's `did.jsonl`. `undefined` for an archive that carries none.
+   * Not parsed or verified here.
+   */
+  didLog?: Uint8Array
   entries: AsyncIterable<TarEntry>
   close: () => Promise<void>
 }
@@ -167,8 +182,8 @@ function parseServiceDescription(bytes: Uint8Array): Record<string, unknown> {
 
 /**
  * Yields one entry already pulled off the tar walk, then the rest of it. The
- * service-description peek reads one entry ahead, and this hands that entry
- * back to the caller in its place in the walk. Written as an iterator object
+ * root-entry peek reads one entry ahead, and this hands that entry back to
+ * the caller in its place in the walk. Written as an iterator object
  * rather than a generator so that a `return()` before the first `next()` still
  * tears the walk down: a generator that has not started runs no `finally`.
  * @param options {object}
@@ -204,12 +219,14 @@ function replay({
 }
 
 /**
- * Opens a Space export archive: reads its `manifest.yml` (the first entry) and
- * the exporting server's `service.json` where the archive carries one (the
- * entry immediately after), and hands back the manifest, that description, the
- * Space id the manifest describes, and a one-shot lazy walk of everything
- * after them. The walk consumes the source as it goes, so it is
- * iterated once and each entry's `bytes()` is called before the walk advances.
+ * Opens a Space export archive: reads its `manifest.yml` (the first entry),
+ * then the root entries the writer places right after it, each where the
+ * archive carries one and in this order: the exporting server's
+ * `service.json`, its `provenance.jsonl`, and its `did.jsonl`. It hands back
+ * the manifest, those entries, the Space id the manifest describes, and a
+ * one-shot lazy walk of everything after them. The walk consumes the source
+ * as it goes, so it is iterated once and each entry's `bytes()` is called
+ * before the walk advances.
  * Bytes that are not a tar are refused with a `BundleInvalidError`.
  * @param source {ByteSource}   the archive's tar bytes, or a stream of them
  * @returns {Promise<SpaceArchive>}
@@ -242,28 +259,48 @@ export async function readSpaceArchive(
     await walk.return(undefined)
   }
 
-  // The writer places `service.json` immediately after the manifest, so one
-  // peek settles whether the archive carries one. An archive without it opens
-  // on its first content entry, which the walk below then yields.
+  // The writer places `service.json`, `provenance.jsonl` and `did.jsonl`
+  // right after the manifest, in that order, each only where it has one. The
+  // peek reads entries while each matches the next name still expected, so
+  // an archive missing any of them still opens; the first entry that matches
+  // none opens the content, and the walk below yields it.
   let service: Record<string, unknown> | undefined
+  let provenance: Uint8Array | undefined
+  let didLog: Uint8Array | undefined
   let pending: TarEntry | undefined
-  const second = await walk.next()
-  if (!second.done) {
-    // Only a regular file is the description; a symlink or other entry type
-    // under that name is content, passed on like any other entry.
-    if (
-      second.value.name === ARCHIVE_SERVICE_FILE &&
-      second.value.type === 'file'
-    ) {
-      try {
-        service = parseServiceDescription(await second.value.bytes())
-      } catch (err) {
-        await walk.return(undefined)
-        throw err
+  const rootFiles = [
+    ARCHIVE_SERVICE_FILE,
+    ARCHIVE_PROVENANCE_FILE,
+    ARCHIVE_DID_LOG_FILE
+  ]
+  try {
+    for (;;) {
+      const next = await walk.next()
+      if (next.done) {
+        break
       }
-    } else {
-      pending = second.value
+      // Only a regular file is a root entry; a symlink or other entry type
+      // under one of the names is content, passed on like any other entry.
+      const position =
+        next.value.type === 'file' ? rootFiles.indexOf(next.value.name) : -1
+      if (position === -1) {
+        pending = next.value
+        break
+      }
+      // A later root entry never precedes an earlier one.
+      rootFiles.splice(0, position + 1)
+      const bytes = await next.value.bytes()
+      if (next.value.name === ARCHIVE_SERVICE_FILE) {
+        service = parseServiceDescription(bytes)
+      } else if (next.value.name === ARCHIVE_PROVENANCE_FILE) {
+        provenance = bytes
+      } else {
+        didLog = bytes
+      }
     }
+  } catch (err) {
+    await walk.return(undefined)
+    throw err
   }
 
   // The walk is handed back as it stands: the reads above have started it, so
@@ -271,5 +308,5 @@ export async function readSpaceArchive(
   // off it is yielded ahead of the rest, so the caller sees every content
   // entry exactly once.
   const entries = pending === undefined ? walk : replay({ pending, walk })
-  return { spaceId, manifest, service, entries, close }
+  return { spaceId, manifest, service, provenance, didLog, entries, close }
 }

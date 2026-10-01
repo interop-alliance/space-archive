@@ -40,11 +40,17 @@ one leaf concern the package exists to hold.
 ## Archive layout
 
 One archive is one Space, and its entries are written in this order. The order
-is fixed, and the reader depends on the first two positions.
+is fixed, and the reader depends on the first four positions: the manifest, then
+the optional root entries `service.json`, `provenance.jsonl`, and `did.jsonl` in
+that order. A root entry placed later is treated as content.
 
 ```
 manifest.yml                       the UBC v0.1 manifest, always first
 service.json                       the exporting server's Service Description,
+                                   verbatim; absent when the exporter gave none
+provenance.jsonl                   the exporting server's provenance statements,
+                                   verbatim; absent when the exporter gave none
+did.jsonl                          the exporting server's DID log snapshot,
                                    verbatim; absent when the exporter gave none
 revocations/                       the Space-scoped zcap revocation records;
 revocations/<record>.json          absent when the Space has none
@@ -73,6 +79,21 @@ on it: the writer takes the object and serializes it, the reader parses it and
 hands it over. It is not named in the manifest's `contents`, which describes the
 Space being exported rather than the server that exported it.
 
+`provenance.jsonl` and `did.jsonl` carry the exporting server's signed claims
+about the Space's objects. The first holds one statement per exported object,
+one JSON object per line. The second is a snapshot of the history log of the DID
+that signed them, so the statements verify offline. The statement format and its
+verification belong to the exporting server and to whoever imports the archive.
+This codec takes both bodies as bytes or strings and writes them verbatim, and
+the reader hands them back as bytes, unparsed and unverified. Unlike
+`service.json`, both are listed in the manifest's `contents`, right after the
+manifest's own entry, because they describe the Space's contents. Neither is
+listed with a documenting `url`, since no specification section describes either
+yet. The reader reads them eagerly, as it does `service.json`, so an importer
+holds the statements before it reaches the first object they describe. A
+statement is a few hundred bytes per object, the same order of size as the
+manifest, which already lists every file.
+
 ## Invariants
 
 1. **One implementation of the archive layout.** This package is the one reader
@@ -92,15 +113,22 @@ Space being exported rather than the server that exported it.
    against the version it depends on. The fixture carries no `service.json`: a
    Service Description is the exporting deployment's, not the layout's, so
    pinning one would pin a server version into the tree the counterpart test
-   stages. The entry's position is pinned by a node test instead.
+   stages. The entry's position is pinned by a node test instead. A second
+   fixture, `fixtures/space-archive-provenance.tar` (subpath export
+   `@interop/space-archive/fixtures/space-archive-provenance.tar`), packs the
+   same tree with `provenance.jsonl` and `did.jsonl`. Their bodies are checked
+   in beside the generator as the WAS reference server wrote them, and the
+   server's counterpart test reproduces them byte for byte from the same seed
+   and log.
 3. **Nothing large is held whole.** The reader parses its manifest from the
-   first tar entry and then walks the rest lazily, so at most one Space archive
-   is in memory at a time. The packer mirrors this on the write side:
-   `packSpaceArchive` returns its pack before filling it, and each entry waits
-   for the consumer to read it out before the next one is written, so a large
-   export never queues more than one entry ahead of its reader. The walk is
-   one-shot: a caller iterates it once, and an entry's `bytes()` rejects if
-   called twice or after the walk has moved past it. A caller that opens an
+   first tar entry, reads the small root entries after it (`service.json`,
+   `provenance.jsonl`, `did.jsonl`), and then walks the rest lazily, so at most
+   one Space archive is in memory at a time. The packer mirrors this on the
+   write side: `packSpaceArchive` returns its pack before filling it, and each
+   entry waits for the consumer to read it out before the next one is written,
+   so a large export never queues more than one entry ahead of its reader. The
+   walk is one-shot: a caller iterates it once, and an entry's `bytes()` rejects
+   if called twice or after the walk has moved past it. A caller that opens an
    archive and never iterates `entries` calls `SpaceArchive.close()` to release
    the source.
 4. **The codec is isomorphic.** No module under `src/` imports `node:*`, and no
@@ -158,6 +186,15 @@ Space being exported rather than the server that exported it.
   from `packSpaceArchive`'s optional `service` option, read back as
   `SpaceArchive.service`. Avoid: service manifest, server description, service
   doc.
+- **Provenance entry** -- the archive's `provenance.jsonl`: the exporting
+  server's signed statements about the Space's objects, one per line, carried
+  verbatim beside `manifest.yml`. Written from `packSpaceArchive`'s optional
+  `provenance` option, read back as `SpaceArchive.provenance`. This codec
+  neither parses nor verifies it. Avoid: signature file, attestations file.
+- **DID log snapshot entry** -- the archive's `did.jsonl`: the history log of
+  the DID that signed the provenance entry, as the exporting server served it.
+  Written from `packSpaceArchive`'s optional `didLog` option, read back as
+  `SpaceArchive.didLog`. Avoid: DID document, server log.
 - **Reserved Space id** -- the Space id `policy`. Refused by
   `spaceMetadataFileName` and `packSpaceArchive` because its Space Metadata file
   name would be `.space.policy.json`, the same name as the Space's own policy

@@ -95,3 +95,57 @@ permanent wire text, so this is a one-time correction of strings that resolved
 nowhere rather than a rewrite following a spec that moved house.
 
 discovered-from: freewallet FW-530.
+
+---
+
+### SAR-5: Carry the exporting server's provenance and DID log snapshot in the archive
+
+- status: done 2026-09-30
+- priority: medium
+- labels: contract, archive-layout, writer, reader
+- touches:
+  - space-archive (this repo): shipped -- `packSpaceArchive`'s optional
+    `provenance` and `didLog` options and the `provenance.jsonl` / `did.jsonl`
+    entries they write, both listed in the manifest (`buildExportManifest`'s
+    `provenance` / `didLog` flags), `SpaceArchive.provenance` and
+    `SpaceArchive.didLog` on the reader, `ARCHIVE_PROVENANCE_FILE`,
+    `ARCHIVE_DID_LOG_FILE` and the two path areas, the second published fixture
+    `fixtures/space-archive-provenance.tar`, and this repo's ARCHITECTURE.md
+    (archive layout, invariants 2 and 3, Glossary), AGENTS.md (parties table)
+    and README
+  - was-teaching-server: shipped -- both backends sign one statement per
+    exported object into `provenance.jsonl` and embed the server's log snapshot
+    as `did.jsonl` (its WAS-165); its counterpart test pins both entries against
+    the new fixture
+  - wallet-backup: unaffected -- it reads Space archives through
+    `readSpaceArchive`, which consumes the new root entries before the walk it
+    iterates, so its migration walk sees the same entries as before
+  - portable-wallet-profile-spec: unaffected -- the profile does not yet carry
+    the per-Space archive's internal layout section (PWP-4), so no normative
+    text names the root entries
+- acceptance:
+  - [x] the packer writes `provenance.jsonl` and `did.jsonl` verbatim after
+        `service.json`, each only when given, and lists both in the manifest
+  - [x] the reader exposes both as bytes without parsing or verifying them, and
+        opens an archive missing any of the root entries
+  - [x] a second fixture carries both entries and regenerates byte-reproducibly,
+        and is published as a subpath export
+  - [x] the server's counterpart test reproduces the second fixture byte for
+        byte
+
+Context: the WAS reference server's export carries `createdBy` and the other
+server-managed members of each object, but nothing authenticates them once the
+archive leaves the server, so an import has to trust whatever the archive says.
+The server now signs one statement per exported object and ships the history log
+of its signing DID with them. The archive layout needs two root entries to hold
+them: `provenance.jsonl`, the statements, and `did.jsonl`, the log snapshot.
+Both sit beside `manifest.yml` and `service.json` and are listed in the
+manifest. This codec only carries them. Verification is the importer's (the
+server's import side, and any wallet that chooses to check).
+
+discovered-from: was-teaching-server WAS-165.
+
+The entries are listed in the manifest with no documenting `url`, since no
+specification section describes either yet. Their bodies in the second fixture
+were written by the server and are checked in beside the generator, since this
+package holds no signing code.

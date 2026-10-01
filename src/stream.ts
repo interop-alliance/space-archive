@@ -13,9 +13,7 @@
  * Anything the archive and bundle readers accept as their input bytes.
  */
 export type ByteSource =
-  | Uint8Array
-  | AsyncIterable<Uint8Array>
-  | ReadableStream<Uint8Array>
+  Uint8Array | AsyncIterable<Uint8Array> | ReadableStream<Uint8Array>
 
 /**
  * Normalizes a byte source into an async iterable of chunks. A `Uint8Array`

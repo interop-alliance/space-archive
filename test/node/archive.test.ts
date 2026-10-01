@@ -26,6 +26,9 @@ import type { ArchiveEntry, ByteSource, TarEntry } from '../../src/index.js'
 import {
   fixtureArchivePath,
   packFixtureArchive,
+  packProvenanceFixtureArchive,
+  provenanceFixtureArchivePath,
+  provenanceFixtureInputs,
   FIXTURE_COLLECTION_ID,
   FIXTURE_REPRESENTATION_FILE_NAME,
   FIXTURE_RESOURCE_ID,
@@ -91,6 +94,19 @@ async function walkAll(source: ByteSource): Promise<void> {
   for await (const entry of tarEntries(source)) {
     await entry.bytes()
   }
+}
+
+/**
+ * Collects the names of a walk's entries, in order.
+ * @param entries {AsyncIterable<TarEntry>}
+ * @returns {Promise<string[]>}
+ */
+async function namesOf(entries: AsyncIterable<TarEntry>): Promise<string[]> {
+  const names: string[] = []
+  for await (const entry of entries) {
+    names.push(entry.name)
+  }
+  return names
 }
 
 describe('tarEntries', () => {
@@ -728,6 +744,108 @@ describe('packSpaceArchive and readSpaceArchive', () => {
     await expect(
       packSpaceArchive({ spaceId: 's1', entries, service: () => {} })
     ).rejects.toThrow(/cannot be serialized as "service.json"/)
+  })
+
+  it('writes provenance.jsonl and did.jsonl after service.json, lists them, and reads them back verbatim', async () => {
+    const provenance = new TextEncoder().encode('{"id":"a"}\n{"id":"b"}\n')
+    const didLog = new TextEncoder().encode('{"versionId":"1-x"}\n')
+    const bytes = await collectBytes(
+      await packSpaceArchive({
+        spaceId: 's1',
+        entries: [{ name: '.space.s1.json', bytes: new Uint8Array() }],
+        service: { url: 'https://was.example/service' },
+        provenance,
+        didLog
+      })
+    )
+    const names = await namesOf(tarEntries(bytes))
+    expect(names.slice(0, 5)).toEqual([
+      'manifest.yml',
+      'service.json',
+      'provenance.jsonl',
+      'did.jsonl',
+      'space/'
+    ])
+    expect(parseArchivePath('provenance.jsonl')).toEqual({
+      area: 'provenance'
+    })
+    expect(parseArchivePath('did.jsonl')).toEqual({ area: 'didLog' })
+    expect(parseArchivePath('did.jsonl/')).toEqual({ area: 'other' })
+
+    const archive = await readSpaceArchive(bytes)
+    expect(archive.service).toEqual({ url: 'https://was.example/service' })
+    expect(archive.provenance).toEqual(provenance)
+    expect(archive.didLog).toEqual(didLog)
+    // Both are listed in the manifest, right after its own entry.
+    expect(Object.keys(archive.manifest.contents).slice(0, 3)).toEqual([
+      'manifest.yml',
+      'provenance.jsonl',
+      'did.jsonl'
+    ])
+    const entryNames = await namesOf(archive.entries)
+    expect(entryNames).toEqual([
+      'space/',
+      'space/s1/',
+      'space/s1/.space.s1.json'
+    ])
+  })
+
+  it('reads provenance entries from an archive carrying no service.json', async () => {
+    const archive = await readSpaceArchive(await packProvenanceFixtureArchive())
+    const inputs = provenanceFixtureInputs()
+    expect(archive.service).toBeUndefined()
+    expect(archive.provenance).toEqual(new Uint8Array(inputs.provenance))
+    expect(archive.didLog).toEqual(new Uint8Array(inputs.didLog))
+    const names = await namesOf(archive.entries)
+    expect(names[0]).toBe('space/')
+  })
+
+  it('leaves both entries out of the archive and its manifest when not given', async () => {
+    const archive = await readSpaceArchive(await packFixtureArchive())
+    expect(archive.provenance).toBeUndefined()
+    expect(archive.didLog).toBeUndefined()
+    expect(Object.keys(archive.manifest.contents)).not.toContain(
+      'provenance.jsonl'
+    )
+    expect(Object.keys(archive.manifest.contents)).not.toContain('did.jsonl')
+    await archive.close()
+  })
+
+  it('passes on a root entry out of order, or not a file, as content', async () => {
+    const manifest = YAML.stringify({
+      'ubc-version': '0.1',
+      contents: { space: { contents: { s1: {} } } }
+    })
+    const outOfOrder = await readSpaceArchive(
+      await packRawTar([
+        { name: 'manifest.yml', body: manifest },
+        { name: 'did.jsonl', body: 'log' },
+        { name: 'provenance.jsonl', body: 'statements' }
+      ])
+    )
+    expect(outOfOrder.didLog).toEqual(new TextEncoder().encode('log'))
+    expect(outOfOrder.provenance).toBeUndefined()
+    const rest = await namesOf(outOfOrder.entries)
+    expect(rest).toEqual(['provenance.jsonl'])
+
+    const symlink = await readSpaceArchive(
+      await packRawTar([
+        { name: 'manifest.yml', body: manifest },
+        {
+          name: 'provenance.jsonl',
+          header: { type: 'symlink', linkname: 'elsewhere' }
+        }
+      ])
+    )
+    expect(symlink.provenance).toBeUndefined()
+    const entries = await namesOf(symlink.entries)
+    expect(entries).toEqual(['provenance.jsonl'])
+  })
+
+  it('reproduces the checked-in provenance fixture archive', async () => {
+    const checkedIn = fs.readFileSync(provenanceFixtureArchivePath())
+    const packed = await packProvenanceFixtureArchive()
+    expect(Buffer.from(packed).equals(checkedIn)).toBe(true)
   })
 
   it('is byte-reproducible across two packs', async () => {

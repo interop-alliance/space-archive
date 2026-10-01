@@ -1,5 +1,20 @@
 # @interop/space-archive Changelog
 
+## 0.5.0 - TBD
+
+### Added
+
+- Two optional root entries, `provenance.jsonl` and `did.jsonl`: the exporting
+  server's signed provenance statements and its DID log snapshot. The packer
+  takes them as `provenance` and `didLog` (bytes or strings) and writes them
+  verbatim after `service.json`. The manifest lists both after its own entry.
+  The reader exposes them as `SpaceArchive.provenance` and
+  `SpaceArchive.didLog`, unparsed and unverified.
+- `ARCHIVE_PROVENANCE_FILE`, `ARCHIVE_DID_LOG_FILE`, and the `provenance` and
+  `didLog` path areas.
+- A second published fixture, `fixtures/space-archive-provenance.tar`: the
+  existing tree plus both entries.
+
 ## 0.4.1 - 2026-09-28
 
 ### Changed

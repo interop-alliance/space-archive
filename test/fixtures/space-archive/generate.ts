@@ -24,6 +24,16 @@
  * a server version and a feature list into the tree the counterpart test
  * stages. The entry's position is pinned by a node test instead.
  *
+ * A second fixture, `fixtures/space-archive-provenance.tar`, packs the same
+ * tree with the two provenance root entries beside the manifest:
+ * `provenance.jsonl` and `did.jsonl`. Their bodies are checked in beside this
+ * file and packed verbatim, since this package neither signs nor verifies.
+ * They were written by the WAS reference server exporting this tree at
+ * `https://was.example` with the export-signing key derived from the 32-byte
+ * seed of all `0x01` bytes, under a `did:webvh` log whose update key is the
+ * `did:key` of the all-`0x02` seed. The server's counterpart test re-exports
+ * the tree under the same seed and log and asserts the same bytes.
+ *
  * Every file name in the tree is written out literally and none comes from the
  * file-name codec's builders. The fixture pins the names on the wire, so it
  * stays independent of the code it checks. A node test asserts each builder
@@ -59,10 +69,28 @@ export const FIXTURE_REPRESENTATION_FILE_NAME =
   'r.note%2E1.application%2Fjson.json'
 
 /**
+ * This generator's directory, the base of every fixture path below.
+ */
+const FIXTURE_DIR = path.dirname(fileURLToPath(import.meta.url))
+
+/**
  * The fixture archive's path, relative to this directory: it lives under the
  * package root's `fixtures/`, the directory the package publishes.
  */
 const FIXTURE_ARCHIVE_FILE = '../../../fixtures/space-archive.tar'
+
+/**
+ * The provenance fixture archive's path, relative to this directory.
+ */
+const PROVENANCE_FIXTURE_ARCHIVE_FILE =
+  '../../../fixtures/space-archive-provenance.tar'
+
+/**
+ * The checked-in `provenance.jsonl` and `did.jsonl` bodies the provenance
+ * fixture packs, relative to this directory.
+ */
+const PROVENANCE_INPUT_FILE = 'provenance.jsonl'
+const DID_LOG_INPUT_FILE = 'did.jsonl'
 
 /**
  * Encodes one fixed JSON document as the bytes of an archive file.
@@ -171,24 +199,71 @@ export async function packFixtureArchive(): Promise<Uint8Array> {
 }
 
 /**
+ * Reads one file checked in beside this generator.
+ * @param name {string}
+ * @returns {Uint8Array}
+ */
+function readInput(name: string): Uint8Array {
+  return fs.readFileSync(path.join(FIXTURE_DIR, name))
+}
+
+/**
+ * The checked-in `provenance.jsonl` and `did.jsonl` bodies the provenance
+ * fixture carries.
+ * @returns {{ provenance: Uint8Array, didLog: Uint8Array }}
+ */
+export function provenanceFixtureInputs(): {
+  provenance: Uint8Array
+  didLog: Uint8Array
+} {
+  return {
+    provenance: readInput(PROVENANCE_INPUT_FILE),
+    didLog: readInput(DID_LOG_INPUT_FILE)
+  }
+}
+
+/**
+ * Packs the provenance fixture archive into its bytes: the fixture tree plus
+ * the checked-in `provenance.jsonl` and `did.jsonl` bodies.
+ * @returns {Promise<Uint8Array>}
+ */
+export async function packProvenanceFixtureArchive(): Promise<Uint8Array> {
+  const pack = await packSpaceArchive({
+    spaceId: FIXTURE_SPACE_ID,
+    entries: fixtureEntries(),
+    revocations: fixtureRevocations(),
+    ...provenanceFixtureInputs()
+  })
+  return collectBytes(pack)
+}
+
+/**
  * The checked-in fixture's absolute path.
  * @returns {string}
  */
 export function fixtureArchivePath(): string {
-  return path.join(
-    path.dirname(fileURLToPath(import.meta.url)),
-    FIXTURE_ARCHIVE_FILE
-  )
+  return path.join(FIXTURE_DIR, FIXTURE_ARCHIVE_FILE)
 }
 
 /**
- * Rewrites the checked-in fixture. Only runs when this module is the entry
- * point, so importing it from a test costs nothing.
+ * The checked-in provenance fixture's absolute path.
+ * @returns {string}
+ */
+export function provenanceFixtureArchivePath(): string {
+  return path.join(FIXTURE_DIR, PROVENANCE_FIXTURE_ARCHIVE_FILE)
+}
+
+/**
+ * Rewrites the two checked-in fixtures. Only runs when this module is the
+ * entry point, so importing it from a test costs nothing.
  * @returns {Promise<void>}
  */
 async function main(): Promise<void> {
-  const bytes = await packFixtureArchive()
-  fs.writeFileSync(fixtureArchivePath(), bytes)
+  fs.writeFileSync(fixtureArchivePath(), await packFixtureArchive())
+  fs.writeFileSync(
+    provenanceFixtureArchivePath(),
+    await packProvenanceFixtureArchive()
+  )
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {

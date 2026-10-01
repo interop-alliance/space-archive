@@ -1,13 +1,14 @@
 /**
  * Packer for a Space export archive: turns an ordered entry tree into the UBC
  * v0.1 tarball (`manifest.yml`, the exporting server's `service.json` where it
- * has one, the `space/<spaceId>/` tree, and the top-level `revocations/`
- * block). Every caller describes the same archive dialect (the
- * file names built by `resourceFileName.ts`, positioned by the path grammar in
- * `archivePath.ts`), whatever storage it reads from, so an archive exported by
- * one imports into another. This module is the single home for the packing
- * itself, and it derives the manifest from the very tree it packs so the two
- * can never drift apart. Before a pack is created, `packSpaceArchive` walks
+ * has one, its `provenance.jsonl` and `did.jsonl` where it signed the export,
+ * the `space/<spaceId>/` tree, and the top-level `revocations/` block). Every
+ * caller describes the same archive dialect (the file names built by
+ * `resourceFileName.ts`, positioned by the path grammar in `archivePath.ts`),
+ * whatever storage it reads from, so an archive exported by one imports into
+ * another. This module is the single home for the packing itself, and it
+ * derives the manifest from the very tree it packs so the two can never drift
+ * apart. Before a pack is created, `packSpaceArchive` walks
  * the caller's tree through `archivePath.ts`'s `buildArchivePath`, refusing a
  * shape the reader's `parseArchivePath` could not place.
  *
@@ -23,7 +24,9 @@ import * as tar from 'tar-stream'
 import YAML from 'yaml'
 import {
   buildArchivePath,
+  ARCHIVE_DID_LOG_FILE,
   ARCHIVE_MANIFEST_FILE,
+  ARCHIVE_PROVENANCE_FILE,
   ARCHIVE_REVOCATIONS_DIR,
   ARCHIVE_SERVICE_FILE,
   ARCHIVE_SPACE_DIR
@@ -38,8 +41,7 @@ import { assertSpaceIdNotReserved } from './resourceFileName.js'
  * still accepted by a Node caller.
  */
 export type ArchiveFile = { name: string } & (
-  | { bytes: Uint8Array }
-  | { read: () => Promise<Uint8Array> }
+  { bytes: Uint8Array } | { read: () => Promise<Uint8Array> }
 )
 
 /**
@@ -239,9 +241,9 @@ function serializeServiceDescription(service: object): string {
  * @param options {object}
  * @param options.pack {tar.Pack}
  * @param options.manifestText {string}
- * @param [options.serviceText] {string}   the exporting server's Service
- *   Description, already serialized; no `service.json` entry is written
- *   without one
+ * @param options.rootFiles {object[]}   the root entries written right after
+ *   the manifest, in order (`service.json`, `provenance.jsonl`, `did.jsonl`);
+ *   one whose `body` is `undefined` is not written
  * @param options.spaceDirPath {string}   the `space/<spaceId>` directory's
  *   archive path
  * @param options.entries {ArchiveEntry[]}
@@ -251,14 +253,14 @@ function serializeServiceDescription(service: object): string {
 async function fillSpaceArchive({
   pack,
   manifestText,
-  serviceText,
+  rootFiles,
   spaceDirPath,
   entries,
   revocations
 }: {
   pack: tar.Pack
   manifestText: string
-  serviceText?: string
+  rootFiles: { name: string; body: Uint8Array | string | undefined }[]
   spaceDirPath: string
   entries: ArchiveEntry[]
   revocations: ArchiveFile[]
@@ -272,12 +274,10 @@ async function fillSpaceArchive({
       header: { name: ARCHIVE_MANIFEST_FILE, mtime },
       body: manifestText
     })
-    if (serviceText !== undefined) {
-      await packEntry({
-        pack,
-        header: { name: ARCHIVE_SERVICE_FILE, mtime },
-        body: serviceText
-      })
+    for (const { name, body } of rootFiles) {
+      if (body !== undefined) {
+        await packEntry({ pack, header: { name, mtime }, body })
+      }
     }
     await packEntry({
       pack,
@@ -306,7 +306,8 @@ async function fillSpaceArchive({
 /**
  * Packs a Space export archive from the caller's ordered entry tree: the
  * `manifest.yml` describing it, the exporting server's Service Description as
- * `service.json` when one is given, the `space/` and `space/<spaceId>/` directory
+ * `service.json` when one is given, the `provenance.jsonl` and `did.jsonl`
+ * bodies when given, the `space/` and `space/<spaceId>/` directory
  * entries, every top-level entry (a Space-level file, or a Collection directory
  * with its files and chunk directories), then the Space-scoped zcap revocations
  * under a top-level `revocations/` dir. Refuses the reserved Space id, and
@@ -324,6 +325,14 @@ async function fillSpaceArchive({
  * @param [options.service] {object}   the exporting server's Service
  *   Description, written verbatim as the `service.json` entry immediately
  *   after the manifest; no such entry is written when it is absent
+ * @param [options.provenance] {Uint8Array | string}   the exporting server's
+ *   provenance statements, one per line, written verbatim as the
+ *   `provenance.jsonl` entry after `service.json` and listed in the manifest;
+ *   no such entry is written when it is absent
+ * @param [options.didLog] {Uint8Array | string}   the exporting server's DID
+ *   history log snapshot, written verbatim as the `did.jsonl` entry after
+ *   `provenance.jsonl` and listed in the manifest; no such entry is written
+ *   when it is absent
  * @returns {Promise<tar.Pack & AsyncIterable<Uint8Array>>}   the tar-stream
  *   pack (a streamx readable; a Node caller wraps it with `Readable.from`),
  *   filled as it is read. A
@@ -333,12 +342,16 @@ export async function packSpaceArchive({
   spaceId,
   entries,
   revocations = [],
-  service
+  service,
+  provenance,
+  didLog
 }: {
   spaceId: string
   entries: ArchiveEntry[]
   revocations?: ArchiveFile[]
   service?: object
+  provenance?: Uint8Array | string
+  didLog?: Uint8Array | string
 }): Promise<tar.Pack & AsyncIterable<Uint8Array>> {
   assertSpaceIdNotReserved(spaceId)
   const spaceDirPath = buildArchivePath({
@@ -364,7 +377,9 @@ export async function packSpaceArchive({
         ? { name: entry.name, files: flattenEntryNames(entry.files) }
         : { name: entry.name }
     ),
-    revocationFiles: revocations.map(file => file.name)
+    revocationFiles: revocations.map(file => file.name),
+    provenance: provenance !== undefined,
+    didLog: didLog !== undefined
   })
 
   const pack = tar.pack()
@@ -373,7 +388,13 @@ export async function packSpaceArchive({
   void fillSpaceArchive({
     pack,
     manifestText: YAML.stringify(manifest),
-    serviceText,
+    // Provenance and the DID log are carried verbatim, unverified: checking
+    // them is the reader's business.
+    rootFiles: [
+      { name: ARCHIVE_SERVICE_FILE, body: serviceText },
+      { name: ARCHIVE_PROVENANCE_FILE, body: provenance },
+      { name: ARCHIVE_DID_LOG_FILE, body: didLog }
+    ],
     spaceDirPath,
     entries,
     revocations

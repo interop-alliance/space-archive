@@ -23,6 +23,21 @@ export const ARCHIVE_MANIFEST_FILE = 'manifest.yml'
 export const ARCHIVE_SERVICE_FILE = 'service.json'
 
 /**
+ * The exporting server's provenance statements, one JSON statement per line,
+ * carried beside the manifest. Absent from an archive written by a server
+ * with no identity to sign with, and from every archive written before the
+ * entry existed.
+ */
+export const ARCHIVE_PROVENANCE_FILE = 'provenance.jsonl'
+
+/**
+ * A snapshot of the exporting server's DID history log, the verbatim bytes
+ * the server served, carried beside the manifest so the provenance statements
+ * verify offline. Absent from an archive that carries no provenance.
+ */
+export const ARCHIVE_DID_LOG_FILE = 'did.jsonl'
+
+/**
  * The archive's top-level directory holding the `<spaceId>/` tree.
  */
 export const ARCHIVE_SPACE_DIR = 'space'
@@ -44,6 +59,8 @@ export const ARCHIVE_REVOCATIONS_DIR = 'revocations'
 export type ArchivePath =
   | { area: 'manifest' }
   | { area: 'service' }
+  | { area: 'provenance' }
+  | { area: 'didLog' }
   | { area: 'spaceRoot' }
   | { area: 'space'; spaceId: string; fileName: string }
   | {
@@ -81,6 +98,12 @@ export function parseArchivePath(path: string): ArchivePath {
   }
   if (trimmed === ARCHIVE_SERVICE_FILE) {
     return isDirectory ? { area: 'other' } : { area: 'service' }
+  }
+  if (trimmed === ARCHIVE_PROVENANCE_FILE) {
+    return isDirectory ? { area: 'other' } : { area: 'provenance' }
+  }
+  if (trimmed === ARCHIVE_DID_LOG_FILE) {
+    return isDirectory ? { area: 'other' } : { area: 'didLog' }
   }
   const segments = trimmed.split('/')
   if (segments.includes('')) {

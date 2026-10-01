@@ -89,6 +89,12 @@ verbatim as the archive's `service.json` immediately after `manifest.yml`. An
 archive carrying one says which specification versions and feature set its
 contents were written under. Nothing in this package checks it.
 
+`provenance` and `didLog` are optional too, each a `Uint8Array` or a string.
+They are the exporting server's signed provenance statements (one JSON object
+per line) and the history log of the DID that signed them. They are written
+verbatim as `provenance.jsonl` and `did.jsonl`, after `service.json`, and both
+are listed in the manifest. This package neither signs nor verifies them.
+
 `packSpaceArchive` refuses the Space id `policy` (`RESERVED_SPACE_ID`), since
 its Space Metadata file name would collide with the Space's own policy file.
 
@@ -102,6 +108,8 @@ const space = await readSpaceArchive(archiveBytes) // Uint8Array, stream, or asy
 space.spaceId // 'zMySpace'
 space.manifest // the parsed manifest.yml document
 space.service // the exporting server's Service Description, or undefined
+space.provenance // the provenance.jsonl bytes, unverified, or undefined
+space.didLog // the did.jsonl bytes, unverified, or undefined
 
 for await (const entry of space.entries) {
   entry.name // e.g. 'space/zMySpace/collection.notes/...'
@@ -109,14 +117,15 @@ for await (const entry of space.entries) {
 }
 ```
 
-The reader parses the manifest from the first tar entry, reads `service.json`
-when the archive carries one (the entry after it), and then walks the rest
-lazily: at most one Space archive is held in memory at a time, and the walk is
-one-shot -- iterate it once, and call each entry's `bytes()` once before moving
-to the next. A second call to `bytes()`, or one made after the walk has moved
-past that entry, rejects. Bytes that are not a tar, or a truncated archive, are
-refused with a `BundleInvalidError`. A caller that opens an archive and never
-iterates `entries` calls `space.close()` to release the underlying source.
+The reader parses the manifest from the first tar entry, reads `service.json`,
+`provenance.jsonl` and `did.jsonl` when the archive carries them (the entries
+after it, in that order), and then walks the rest lazily: at most one Space
+archive is held in memory at a time, and the walk is one-shot -- iterate it
+once, and call each entry's `bytes()` once before moving to the next. A second
+call to `bytes()`, or one made after the walk has moved past that entry,
+rejects. Bytes that are not a tar, or a truncated archive, are refused with a
+`BundleInvalidError`. A caller that opens an archive and never iterates
+`entries` calls `space.close()` to release the underlying source.
 
 A Metadata file stores its object with the validator embedded as `_generation` /
 `_version`. `collectionMetadataFromFile({ bytes })` and

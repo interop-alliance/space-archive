@@ -6,7 +6,9 @@
  * module is the single home for the manifest that describes it.
  */
 import {
+  ARCHIVE_DID_LOG_FILE,
   ARCHIVE_MANIFEST_FILE,
+  ARCHIVE_PROVENANCE_FILE,
   ARCHIVE_REVOCATIONS_DIR,
   ARCHIVE_SPACE_DIR
 } from './archivePath.js'
@@ -84,16 +86,24 @@ function collectionManifestEntry(fileName: string): unknown {
  * @param [options.revocationFiles] {string[]}   ordered file names of the
  *   archive's Space-scoped zcap revocation records (`revocations/` entries);
  *   omitted from the manifest when the Space has none
+ * @param [options.provenance] {boolean}   whether the archive carries a
+ *   `provenance.jsonl` entry, listed right after the manifest's own entry
+ * @param [options.didLog] {boolean}   whether the archive carries a
+ *   `did.jsonl` entry, listed after `provenance.jsonl`
  * @returns {object}   the manifest document (serialize with `YAML.stringify`)
  */
 export function buildExportManifest({
   spaceId,
   entries,
-  revocationFiles = []
+  revocationFiles = [],
+  provenance = false,
+  didLog = false
 }: {
   spaceId: string
   entries: ExportSpaceEntry[]
   revocationFiles?: string[]
+  provenance?: boolean
+  didLog?: boolean
 }): object {
   const spaceContents: unknown[] = []
   for (const entry of entries) {
@@ -114,6 +124,10 @@ export function buildExportManifest({
     'ubc-version': '0.1',
     contents: {
       [ARCHIVE_MANIFEST_FILE]: { url: UBC_MANIFEST_URL },
+      // Listed by name with no documenting `url`: no specification section
+      // describes either entry yet.
+      ...(provenance && { [ARCHIVE_PROVENANCE_FILE]: {} }),
+      ...(didLog && { [ARCHIVE_DID_LOG_FILE]: {} }),
       ...(revocationFiles.length > 0 && {
         [ARCHIVE_REVOCATIONS_DIR]: { contents: [...revocationFiles] }
       }),

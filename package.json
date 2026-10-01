@@ -31,7 +31,8 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
-    "./fixtures/space-archive.tar": "./fixtures/space-archive.tar"
+    "./fixtures/space-archive.tar": "./fixtures/space-archive.tar",
+    "./fixtures/space-archive-provenance.tar": "./fixtures/space-archive-provenance.tar"
   },
   "module": "dist/index.js",
   "browser": "dist/index.js",
