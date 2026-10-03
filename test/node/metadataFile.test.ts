@@ -19,15 +19,17 @@ function bytesOf(text: string): Uint8Array {
 }
 
 describe('collectionMetadataFromFile', () => {
-  it('returns the stored object without the embedded validator', () => {
+  it('returns the stored object without the embedded generation', () => {
     const stored = {
       id: 'notes',
       type: ['Collection'],
       name: 'Notes',
       generator: { id: 'did:key:z6MkApp', origin: 'https://app.example' },
+      updatedAt: '1970-01-01T00:00:00.000Z',
+      updatedAtCounter: 0,
+      originId: 'zOrigin',
       custom: { color: 'blue' },
-      _generation: 'gen-1',
-      _version: 3
+      _generation: 'gen-1'
     }
     expect(
       collectionMetadataFromFile({ bytes: bytesOf(JSON.stringify(stored)) })
@@ -36,11 +38,14 @@ describe('collectionMetadataFromFile', () => {
       type: ['Collection'],
       name: 'Notes',
       generator: { id: 'did:key:z6MkApp', origin: 'https://app.example' },
+      updatedAt: '1970-01-01T00:00:00.000Z',
+      updatedAtCounter: 0,
+      originId: 'zOrigin',
       custom: { color: 'blue' }
     })
   })
 
-  it('reads a body that carries no validator members', () => {
+  it('reads a body that carries no embedded generation', () => {
     expect(
       collectionMetadataFromFile({ bytes: bytesOf('{"id":"notes"}') })
     ).toEqual({ id: 'notes' })
@@ -65,16 +70,24 @@ describe('collectionMetadataFromFile', () => {
 })
 
 describe('spaceMetadataFromFile', () => {
-  it('returns the stored object without the embedded validator', () => {
+  it('returns the stored object without the embedded generation', () => {
     const stored = {
       id: 'space-1',
       controller: 'did:key:z6MkOwner',
-      _generation: 'gen-2',
-      _version: 1
+      updatedAt: '1970-01-01T00:00:00.000Z',
+      updatedAtCounter: 0,
+      originId: 'zOrigin',
+      _generation: 'gen-2'
     }
     expect(
       spaceMetadataFromFile({ bytes: bytesOf(JSON.stringify(stored)) })
-    ).toEqual({ id: 'space-1', controller: 'did:key:z6MkOwner' })
+    ).toEqual({
+      id: 'space-1',
+      controller: 'did:key:z6MkOwner',
+      updatedAt: '1970-01-01T00:00:00.000Z',
+      updatedAtCounter: 0,
+      originId: 'zOrigin'
+    })
   })
 
   it('refuses a body that is not a JSON object', () => {

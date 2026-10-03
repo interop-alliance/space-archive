@@ -149,3 +149,54 @@ The entries are listed in the manifest with no documenting `url`, since no
 specification section describes either yet. Their bodies in the second fixture
 were written by the server and are checked in beside the generator, since this
 package holds no signing code.
+
+### SAR-6: Retire the `_version` member and regenerate the fixtures for write stamps
+
+- status: done 2026-10-03
+- priority: medium
+- labels: contract, metadata-file, fixtures
+- discovered-from: was-teaching-server WAS-172 (2026-10-03)
+- touches:
+  - space-archive (this repo): shipped 2026-10-03, unpublished (0.6.0) --
+    `metadataFile.ts` strips `_generation` alone, with its test and the README
+    to match; `generate.ts` carries the write-stamp tree; `provenance.jsonl`
+    rewritten from the server's export of it; `did.jsonl` reproduced byte for
+    byte from the all-`0x02` seed and kept; both fixture archives regenerated;
+    ARCHITECTURE.md (layer map, invariant 2, a Write stamp glossary entry) and
+    CHANGELOG.md updated
+  - was-teaching-server: shipped -- the provenance case in
+    `test/space-archive-fixture.test.ts` consumes the republished fixture and
+    runs as `it` again; the staged tree in that test follows the regenerated one
+- acceptance:
+  - [x] `metadataFile.ts` no longer names or strips `_version`; `_generation` is
+        the one embedded validator member it removes
+  - [x] `test/node/metadataFile.test.ts` and the README describe the Metadata
+        file without `_version`
+  - [x] the fixture tree in `generate.ts` carries the write-stamp layout the
+        reference server exports (stamp members on each record, no `version`
+        counter on the governing history log record)
+  - [x] `provenance.jsonl` is rewritten from the reference server's export of
+        that tree, under the seeds `generate.ts` documents. `did.jsonl` is
+        reproduced byte for byte and stays unchanged. Both fixture archives are
+        regenerated
+  - [x] the server's counterpart test passes against the republished package
+        with `it.fails` back to `it`
+
+Context: the WAS reference server replaced its per-record version counters with
+a write stamp (`updatedAt`, `updatedAtCounter`, `originId`). A Space or
+Collection Metadata file it exports now embeds `_generation` alone. The stamp
+members are wire members and sit in the body. This package still strips
+`_version` beside `_generation` when it reads a Metadata file back. The strip is
+harmless, but the code, its test, and the README describe a member no server
+writes.
+
+The fixtures predate the stamp as well. The tree in `generate.ts` has no stamp
+members, and its governing history log record carries `version: 1`. The
+checked-in `provenance.jsonl` statements attest the retired `version` claims. A
+statement the server signs now attests the object's write stamp, and a
+Resource's `meta` stamp, in their place. The server's export of the staged tree
+therefore no longer matches `fixtures/space-archive-provenance.tar` byte for
+byte, and its counterpart case is marked as expected to fail until this lands.
+
+The Collection tombstone form is a separate dialect change, tracked by the
+server's WAS-174.

@@ -1,5 +1,19 @@
 # @interop/space-archive Changelog
 
+## 0.6.0 - TBD
+
+### Changed
+
+- **Breaking:** `collectionMetadataFromFile` and `spaceMetadataFromFile` no
+  longer strip a `_version` member. `_generation` is the one embedded member
+  removed; a reader that relied on `_version` being dropped now sees it.
+- Both published fixtures are regenerated for the WAS write stamp. Each Metadata
+  file, the governing history log record and the Resource sidecar carry
+  `updatedAt`, `updatedAtCounter` and `originId` (the sidecar also a `meta`
+  stamp). The Metadata files embed `_generation`, and the log record drops
+  `version`. `provenance.jsonl` is rewritten from the server's export of the new
+  tree; `did.jsonl` is unchanged.
+
 ## 0.5.0 - 2026-09-30
 
 ### Added

@@ -19,6 +19,16 @@
  * Resource representation and that Resource's metadata sidecar, and one
  * Space-scoped revocation record.
  *
+ * Each record has the layout the WAS reference server exports. The two
+ * Metadata files, the governing history log record and the Resource sidecar
+ * carry a write stamp (`updatedAt`, `updatedAtCounter`, `originId`), in the
+ * member order the server writes. The sidecar also carries its `/meta`
+ * record's stamp and generation under `meta`. Every stamp is the epoch with
+ * counter 0 and the origin id `zFixtureOrigin`. A Metadata file embeds its
+ * generation as `_generation`, and the log record and the sidecar carry theirs
+ * as `generation`. The revocation record is a stub and carries no stamp, as a
+ * stored revocation has none.
+ *
  * The fixture carries no `service.json`. A Service Description belongs to the
  * exporting deployment rather than to the layout, so putting one here would pin
  * a server version and a feature list into the tree the counterpart test
@@ -31,8 +41,10 @@
  * They were written by the WAS reference server exporting this tree at
  * `https://was.example` with the export-signing key derived from the 32-byte
  * seed of all `0x01` bytes, under a `did:webvh` log whose update key is the
- * `did:key` of the all-`0x02` seed. The server's counterpart test re-exports
- * the tree under the same seed and log and asserts the same bytes.
+ * `did:key` of the all-`0x02` seed. That log is a single `createDID` entry
+ * made at `2026-09-30T23:40:34Z`, and it reproduces byte for byte under that
+ * clock. The server's counterpart test re-exports the tree under the same seed
+ * and log and asserts the same bytes.
  *
  * Every file name in the tree is written out literally and none comes from the
  * file-name codec's builders. The fixture pins the names on the wire, so it
@@ -80,6 +92,16 @@ const FIXTURE_DIR = path.dirname(fileURLToPath(import.meta.url))
 const FIXTURE_ARCHIVE_FILE = '../../../fixtures/space-archive.tar'
 
 /**
+ * The write stamp every stamped record in the fixture carries: the epoch, the
+ * counter at 0, and a fixture origin id.
+ */
+const FIXTURE_STAMP = {
+  updatedAt: '1970-01-01T00:00:00.000Z',
+  updatedAtCounter: 0,
+  originId: 'zFixtureOrigin'
+}
+
+/**
  * The provenance fixture archive's path, relative to this directory.
  */
 const PROVENANCE_FIXTURE_ARCHIVE_FILE =
@@ -121,6 +143,7 @@ function fixtureEntries(): ArchiveEntry[] {
         id: FIXTURE_SPACE_ID,
         controller: 'did:key:z6MkfixtureController',
         type: ['Space'],
+        ...FIXTURE_STAMP,
         // The Space Metadata entry travels as the object a server serves, so
         // it carries the server-derived `backends` listing. The counterpart
         // server exports a single server-configured filesystem backend, which
@@ -132,7 +155,8 @@ function fixtureEntries(): ArchiveEntry[] {
             managedBy: 'server',
             persistence: 'durable'
           }
-        ]
+        ],
+        _generation: 'zFixtureSpaceGeneration'
       }
     }),
     {
@@ -143,25 +167,37 @@ function fixtureEntries(): ArchiveEntry[] {
           document: {
             id: FIXTURE_COLLECTION_ID,
             createdAt: '1970-01-01T00:00:00.000Z',
-            updatedAt: '1970-01-01T00:00:00.000Z'
+            ...FIXTURE_STAMP,
+            _generation: 'zFixtureNotesGeneration'
           }
         }),
         // The governing history log travels as the server's stored record --
-        // the JSON Lines body beside the validator it was served under -- not
-        // as the bare body.
+        // the JSON Lines body beside the generation and write stamp it was
+        // served under -- not as the bare body.
         jsonFile({
           name: `.collectionlog.${FIXTURE_COLLECTION_ID}.json`,
           document: {
             generation: 'zFixtureLogGeneration',
-            version: 1,
+            ...FIXTURE_STAMP,
             body: `${JSON.stringify({
               state: { type: 'WasEpochConfiguration', scheme: 'edv' }
             })}\n`
           }
         }),
+        // The sidecar holds the content record's stamp and generation, and
+        // the `/meta` record's own under `meta`.
         jsonFile({
           name: `.meta.${FIXTURE_RESOURCE_ID}.json`,
-          document: { custom: { title: 'A note' } }
+          document: {
+            createdAt: '1970-01-01T00:00:00.000Z',
+            ...FIXTURE_STAMP,
+            generation: 'zFixtureNoteGeneration',
+            meta: {
+              ...FIXTURE_STAMP,
+              generation: 'zFixtureNoteMetaGeneration'
+            },
+            custom: { title: 'A note' }
+          }
         }),
         jsonFile({
           name: FIXTURE_REPRESENTATION_FILE_NAME,

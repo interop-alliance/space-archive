@@ -127,9 +127,10 @@ rejects. Bytes that are not a tar, or a truncated archive, are refused with a
 `BundleInvalidError`. A caller that opens an archive and never iterates
 `entries` calls `space.close()` to release the underlying source.
 
-A Metadata file stores its object with the validator embedded as `_generation` /
-`_version`. `collectionMetadataFromFile({ bytes })` and
-`spaceMetadataFromFile({ bytes })` read one back without those two members:
+A Metadata file stores its object with its generation embedded as the reserved
+`_generation` member. The write stamp (`updatedAt`, `updatedAtCounter`,
+`originId`) is part of the object. `collectionMetadataFromFile({ bytes })` and
+`spaceMetadataFromFile({ bytes })` read one back without `_generation`:
 
 ```js
 import {

@@ -24,7 +24,7 @@ src/tarEntries.ts         The lazy tar walk the reader shares with its consumers
 
 src/archive/manifestUrls.ts      The documenting URLs the archive manifest names
 src/archive/resourceFileName.ts  The on-disk file-name dialect: built, parsed, classified
-src/archive/metadataFile.ts      A Metadata file's body read back, validator removed
+src/archive/metadataFile.ts      A Metadata file's body read back, `_generation` removed
 src/archive/policyFile.ts        A policy file's body read back as its policy document
 src/archive/exportManifest.ts    The archive's `manifest.yml` document
 src/archive/exportTar.ts         `packSpaceArchive`: an entry tree to a tar
@@ -119,7 +119,9 @@ manifest, which already lists every file.
    same tree with `provenance.jsonl` and `did.jsonl`. Their bodies are checked
    in beside the generator as the WAS reference server wrote them, and the
    server's counterpart test reproduces them byte for byte from the same seed
-   and log.
+   and log. The fixture tree has the record layout that server exports, write
+   stamps included, so a change to that layout regenerates both fixtures and
+   both bodies.
 3. **Nothing large is held whole.** The reader parses its manifest from the
    first tar entry, reads the small root entries after it (`service.json`,
    `provenance.jsonl`, `did.jsonl`), and then walks the rest lazily, so at most
@@ -195,6 +197,11 @@ manifest, which already lists every file.
   the DID that signed the provenance entry, as the exporting server served it.
   Written from `packSpaceArchive`'s optional `didLog` option, read back as
   `SpaceArchive.didLog`. Avoid: DID document, server log.
+- **Write stamp** -- the `updatedAt`, `updatedAtCounter` and `originId` members
+  a WAS server stores on each versioned record (a Metadata file, a governing
+  history log record, a Resource sidecar and its `meta` member). A Metadata file
+  keeps them in its body. This codec carries them as part of the object and does
+  not read them. Avoid: version, revision counter.
 - **Reserved Space id** -- the Space id `policy`. Refused by
   `spaceMetadataFileName` and `packSpaceArchive` because its Space Metadata file
   name would be `.space.policy.json`, the same name as the Space's own policy
