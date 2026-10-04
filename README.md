@@ -96,7 +96,43 @@ verbatim as `provenance.jsonl` and `did.jsonl`, after `service.json`, and both
 are listed in the manifest. This package neither signs nor verifies them.
 
 `packSpaceArchive` refuses the Space id `policy` (`RESERVED_SPACE_ID`), since
-its Space Metadata file name would collide with the Space's own policy file.
+its Space Metadata file name would collide with the Space's own policy file. It
+likewise refuses a top-level Collection directory named `policy`
+(`RESERVED_COLLECTION_ID`), and `collectionMetadataFileName('policy')` throws,
+since the Collection Metadata file name would be the Collection policy file's.
+
+A deleted Collection is packed as a Collection tombstone: a top-level entry
+named `.collection.<collectionId>.json` whose body is the stored tombstone
+(`deleted: true`, the whole write stamp, `_generation`, and no other member),
+with no Collection directory of that id. The manifest lists it with
+`deleted: true`. The packer refuses a tombstone body that
+`collectionTombstoneFromFile` refuses (no write stamp, or live Metadata members
+kept), a `deleted: true` body inside a Collection directory, and a tombstone
+beside a Collection directory of the same id.
+
+In the manifest, that entry is a file in a Space's `contents`, a single-key
+object, where every other object entry is a Collection directory. Tell a
+directory by its `contents` member, or a tombstone by `deleted: true`.
+
+```js
+const pack = await packSpaceArchive({
+  spaceId: 'zMySpace',
+  entries: [
+    {
+      name: '.collection.oldNotes.json',
+      bytes: new TextEncoder().encode(
+        JSON.stringify({
+          deleted: true,
+          updatedAt: '2026-10-03T00:00:00.000Z',
+          updatedAtCounter: 0,
+          originId: 'zOrigin',
+          _generation: 'zGeneration'
+        })
+      )
+    }
+  ]
+})
+```
 
 ### Reading a Space archive
 
@@ -141,6 +177,29 @@ import {
 if (classifyCollectionFile(fileName).kind === 'collectionMetadata') {
   const metadata = collectionMetadataFromFile({ bytes: await entry.bytes() })
   metadata.generator // the app the Collection was provisioned for, if any
+}
+```
+
+A Collection tombstone's path parses as the `collectionTombstone` area, and
+`collectionTombstoneFromFile({ bytes })` reads its body without `_generation`.
+It requires `deleted: true`, a whole write stamp, and no other member, and
+returns `WriteStamp & { deleted: true }`. `collectionMetadataFromFile` refuses a
+tombstone body, and `isCollectionTombstone(metadata)` tells a parsed body that
+is one. The walk refuses an archive holding one Collection both as a tombstone
+and as a directory. The check is per Space directory, and only a file entry
+counts as a tombstone.
+
+```js
+import {
+  collectionTombstoneFromFile,
+  parseArchivePath
+} from '@interop/space-archive'
+
+const position = parseArchivePath(entry.name)
+if (position.area === 'collectionTombstone') {
+  const tombstone = collectionTombstoneFromFile({ bytes: await entry.bytes() })
+  position.collectionId // the deleted Collection's id
+  tombstone.updatedAt // the deleting write's stamp
 }
 ```
 

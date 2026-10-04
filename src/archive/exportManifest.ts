@@ -20,7 +20,10 @@ import {
   POLICY_URL,
   META_URL
 } from './manifestUrls.js'
-import { classifyCollectionFile } from './resourceFileName.js'
+import {
+  classifyCollectionFile,
+  parseCollectionMetadataFileName
+} from './resourceFileName.js'
 import type { CollectionFileKind } from './resourceFileName.js'
 
 /**
@@ -76,10 +79,26 @@ function collectionManifestEntry(fileName: string): unknown {
 }
 
 /**
+ * Lists one Space-level file. A Collection Metadata file in the Space
+ * directory is a Collection tombstone, listed with its documenting `url` and
+ * `deleted: true`. Any other Space-level file is listed by bare name.
+ * @param fileName {string}
+ * @returns {unknown}
+ */
+function spaceManifestEntry(fileName: string): unknown {
+  if (parseCollectionMetadataFileName(fileName) === undefined) {
+    return fileName
+  }
+  return { [fileName]: { url: COLLECTION_URL, deleted: true } }
+}
+
+/**
  * Builds the UBC v0.1 manifest object for a Space export. The caller supplies
  * the archive's top-level entries in the order they will be packed (Space-level
  * files interleaved with Collection directories); the manifest mirrors that
- * order.
+ * order. A Collection tombstone (a `.collection.<collectionId>.json` file
+ * among the Space-level files) is listed with `deleted: true`; a live
+ * Collection's entries carry no `deleted` member.
  * @param options {object}
  * @param options.spaceId {string}
  * @param options.entries {ExportSpaceEntry[]}   ordered top-level entries
@@ -108,9 +127,7 @@ export function buildExportManifest({
   const spaceContents: unknown[] = []
   for (const entry of entries) {
     if (entry.files === undefined) {
-      // top-level files in space (e.g. .space.<spaceId>.json), listed by bare
-      // name. Only Collection-dir files carry a documenting `url`
-      spaceContents.push(entry.name)
+      spaceContents.push(spaceManifestEntry(entry.name))
       continue
     }
     spaceContents.push({

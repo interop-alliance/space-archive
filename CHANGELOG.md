@@ -1,5 +1,49 @@
 # @interop/space-archive Changelog
 
+## 0.7.0 - TBD
+
+### Added
+
+- Collection tombstones. A deleted Collection travels as its
+  `.collection.<collectionId>.json` file in the Space directory, with no
+  Collection directory. The body is `deleted: true`, the whole write stamp
+  (`updatedAt`, `updatedAtCounter`, `originId`), and `_generation`, with no
+  other member. The manifest lists the file with
+  `{ url: COLLECTION_URL, deleted: true }`. Live Collection entries are
+  unchanged.
+- `collectionTombstoneFromFile({ bytes })` reads a tombstone body without
+  `_generation` and returns `WriteStamp & { deleted: true }`. It refuses, with
+  `BundleInvalidError`, a body without `deleted: true`, without a whole write
+  stamp, or with any other member.
+- `isCollectionTombstone(metadata)` tells a parsed Collection Metadata file body
+  that is a tombstone.
+- `packSpaceArchive` refuses a tombstone beside a Collection directory of the
+  same id, a body in the tombstone position that `collectionTombstoneFromFile`
+  refuses (error text `... is not a tombstone body`, with the reader's error as
+  `cause`), and a `deleted: true` body inside a Collection directory. A body
+  read through `read()` is checked when it is read and fails the pack's reader.
+- The reader's walk refuses an archive holding one Collection both as a
+  tombstone and as a directory, with `BundleInvalidError`. The check is per
+  Space directory, and only a file entry at the tombstone path counts as a
+  tombstone.
+- `RESERVED_COLLECTION_ID` (`policy`) and `assertCollectionIdNotReserved`.
+
+### Changed
+
+- **Breaking:** `parseArchivePath` places a Collection Metadata file directly in
+  the Space directory as the new `collectionTombstone` area (`spaceId`,
+  `collectionId`, `fileName`) rather than as a `space` file.
+- **Breaking:** `collectionMetadataFromFile` refuses a tombstone body with
+  `BundleInvalidError`.
+- **Breaking:** `collectionMetadataFileName` and `packSpaceArchive` refuse the
+  Collection id `policy`, since its Metadata file name would be the Collection
+  policy file's name.
+- **Breaking:** a Space's manifest `contents` can now hold a single-key object
+  entry that is a file, `{ '.collection.<id>.json': { url, deleted: true } }`.
+  Before, every object entry there was a Collection directory. A consumer
+  listing Collections from the manifest tells a directory by its `contents`
+  member, or a tombstone by `deleted: true`.
+
 ## 0.6.0 - 2026-10-03
 
 ### Changed

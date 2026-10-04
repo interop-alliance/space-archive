@@ -24,11 +24,12 @@ src/tarEntries.ts         The lazy tar walk the reader shares with its consumers
 
 src/archive/manifestUrls.ts      The documenting URLs the archive manifest names
 src/archive/resourceFileName.ts  The on-disk file-name dialect: built, parsed, classified
-src/archive/metadataFile.ts      A Metadata file's body read back, `_generation` removed
+src/archive/metadataFile.ts      A Metadata or tombstone file's body read back, `_generation` removed
 src/archive/policyFile.ts        A policy file's body read back as its policy document
 src/archive/exportManifest.ts    The archive's `manifest.yml` document
 src/archive/exportTar.ts         `packSpaceArchive`: an entry tree to a tar
 src/archive/archivePath.ts       The archive path grammar: parsed, and built by the packer
+src/archive/collectionForms.ts   The tombstone-or-directory check the packer and reader share
 src/archive/readSpaceArchive.ts  The reader
 ```
 
@@ -57,10 +58,46 @@ revocations/<record>.json          absent when the Space has none
 space/
 space/<spaceId>/
 space/<spaceId>/<file>             Space-level dot-files
+space/<spaceId>/.collection.<collectionId>.json
+                                   a Collection tombstone; no directory for
+                                   that Collection
 space/<spaceId>/<collectionId>/
 space/<spaceId>/<collectionId>/<file>
 space/<spaceId>/<collectionId>/.chunks.<encodedResourceId>/<chunkFile>
 ```
+
+A deleted Collection travels as a Collection tombstone (decision 0011 in the WAS
+spec repo). The tombstone is the Collection's `.collection.<id>.json` file,
+moved up into the Space directory, with no `<collectionId>/` directory beside
+it. Its body is the stored tombstone: `deleted: true`, the whole write stamp of
+the deleting write, and `_generation`, with no other member. The manifest lists
+the file in the Space's `contents` as
+`{ '.collection.<id>.json': { url: COLLECTION_URL, deleted: true } }`. A live
+Collection's entries carry no `deleted` member.
+
+That entry is a file, a single-key object, in a list where every other object
+entry is a Collection directory. A consumer listing Collections from a Space's
+`contents` tells a directory by its `contents` member, or a tombstone by
+`deleted: true`.
+
+The position is what marks a tombstone. A live Collection keeps its Metadata
+file inside its own directory, so `parseArchivePath` places a Collection
+Metadata file directly in the Space directory as the `collectionTombstone` area,
+and the manifest builder derives the flag from the same file name. The body must
+agree with the position. The packer reads a body in the tombstone position
+through `collectionTombstoneFromFile` and refuses one it refuses, such as a body
+with no write stamp or one that keeps live Metadata members. It also refuses a
+`deleted: true` body inside a Collection directory, and a tombstone beside a
+Collection directory of the same id. Inline bytes are checked before the pack is
+created, and a `read()` body when it is read. The reader refuses an archive
+holding one Collection both as a tombstone and as a directory, from the walk,
+when it reaches the second of the two. That check is per Space directory, keyed
+by Space id and Collection id, and only a file entry at the tombstone path
+counts as a tombstone. `collectionTombstoneFromFile` requires `deleted: true`, a
+whole write stamp, and no other member besides `_generation`.
+`collectionMetadataFromFile` refuses a tombstone body. The manifest's `deleted`
+flag is descriptive, like the rest of its `contents`: the reader does not check
+it against the entries, and the entry's position and body decide.
 
 A chunk directory's entries are packed together. `packDirectory`
 (`src/archive/exportTar.ts`) writes the directory entry and then every file
@@ -202,11 +239,27 @@ manifest, which already lists every file.
   history log record, a Resource sidecar and its `meta` member). A Metadata file
   keeps them in its body. This codec carries them as part of the object and does
   not read them. Avoid: version, revision counter.
+- **Collection tombstone** -- the record a deleted Collection leaves: its
+  Collection Metadata file with `deleted: true`, the deleting write's stamp, and
+  `_generation`, and nothing else; a body missing the stamp or carrying other
+  members is refused. In an archive it sits in the Space directory with no
+  Collection directory, parses as the `collectionTombstone` area, and is flagged
+  `deleted: true` in the manifest. Read with `collectionTombstoneFromFile`; told
+  apart from a live object by `isCollectionTombstone`. Avoid: deleted Collection
+  entry, Collection marker.
 - **Reserved Space id** -- the Space id `policy`. Refused by
   `spaceMetadataFileName` and `packSpaceArchive` because its Space Metadata file
   name would be `.space.policy.json`, the same name as the Space's own policy
   file. Lives in `src/archive/resourceFileName.ts` (`RESERVED_SPACE_ID`,
   `assertSpaceIdNotReserved`). Avoid: forbidden Space id, blocked id.
+- **Reserved Collection id** -- the Collection id `policy`. Refused by
+  `collectionMetadataFileName` and `packSpaceArchive` (a top-level Collection
+  directory of that name) because its Collection Metadata file name would be
+  `.collection.policy.json`, the same name as the Collection policy file, so
+  neither a live Metadata file nor a tombstone for it could be named. The WAS
+  spec's reserved path segment registry already reserves it. Lives in
+  `src/archive/resourceFileName.ts` (`RESERVED_COLLECTION_ID`,
+  `assertCollectionIdNotReserved`). Avoid: forbidden Collection id, blocked id.
 
 ## Current State labels
 

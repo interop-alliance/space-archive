@@ -24,6 +24,7 @@ import * as tar from 'tar-stream'
 import YAML from 'yaml'
 import {
   buildArchivePath,
+  parseArchivePath,
   ARCHIVE_DID_LOG_FILE,
   ARCHIVE_MANIFEST_FILE,
   ARCHIVE_PROVENANCE_FILE,
@@ -31,8 +32,18 @@ import {
   ARCHIVE_SERVICE_FILE,
   ARCHIVE_SPACE_DIR
 } from './archivePath.js'
+import type { ArchivePath } from './archivePath.js'
+import { CollectionForms } from './collectionForms.js'
 import { buildExportManifest, EXPORT_ENTRY_MTIME } from './exportManifest.js'
-import { assertSpaceIdNotReserved } from './resourceFileName.js'
+import {
+  collectionTombstoneFromFile,
+  holdsCollectionTombstone
+} from './metadataFile.js'
+import {
+  assertCollectionIdNotReserved,
+  assertSpaceIdNotReserved,
+  classifyCollectionFile
+} from './resourceFileName.js'
 
 /**
  * One file in an export archive: its bytes inline, or a `read()` thunk resolved
@@ -173,12 +184,66 @@ async function packDirectory({
       })
       continue
     }
-    await packEntry({
-      pack,
-      header: { name: `${target}/${path}`, mtime },
+    const name = `${target}/${path}`
+    let body: Uint8Array
+    if ('bytes' in entry) {
+      // Inline bytes were checked before the pack was created.
+      body = entry.bytes
+    } else {
       // A `read()` thunk is called only now, one file at a time.
-      body: 'bytes' in entry ? entry.bytes : await entry.read()
-    })
+      body = await entry.read()
+      assertBodyFitsPosition({
+        path: name,
+        position: parseArchivePath(name),
+        body
+      })
+    }
+    await packEntry({ pack, header: { name, mtime }, body })
+  }
+}
+
+/**
+ * Refuses a Collection Metadata file whose body disagrees with its position.
+ * A Collection tombstone (a `.collection.<collectionId>.json` file in the
+ * Space directory) must read as one through `collectionTombstoneFromFile`:
+ * `deleted: true`, a whole write stamp, `_generation`, and no other member. A
+ * Collection Metadata file inside its Collection directory must not carry
+ * `deleted: true`; a body there that is not a JSON object passes, as it does
+ * for every other file. Every other file passes unread.
+ * @param options {object}
+ * @param options.path {string}   the file's archive path
+ * @param options.position {ArchivePath}   that path, parsed
+ * @param options.body {Uint8Array}
+ * @returns {void}
+ */
+function assertBodyFitsPosition({
+  path,
+  position,
+  body
+}: {
+  path: string
+  position: ArchivePath
+  body: Uint8Array
+}): void {
+  if (position.area === 'collectionTombstone') {
+    try {
+      collectionTombstoneFromFile({ bytes: body })
+    } catch (err) {
+      throw new Error(
+        `The Collection tombstone "${path}" is not a tombstone body.`,
+        { cause: err }
+      )
+    }
+    return
+  }
+  if (
+    position.area === 'collection' &&
+    classifyCollectionFile(position.fileName).kind === 'collectionMetadata' &&
+    holdsCollectionTombstone({ bytes: body })
+  ) {
+    throw new Error(
+      `The Collection Metadata file "${path}" is a tombstone inside its Collection directory. A Collection tombstone is packed in the Space directory, with no Collection directory.`
+    )
   }
 }
 
@@ -186,9 +251,13 @@ async function packDirectory({
  * Refuses an entry tree containing a shape {@link buildArchivePath} cannot
  * place: an entry name that is empty or embeds a `/`, a directory nested
  * deeper than a chunk directory, or a directory that is not a chunk directory
- * where the layout allows no other kind of directory. Walks the tree in the
- * same order `packDirectory` packs it, before a pack ever exists, so a caller
- * sees the refusal without any tar-stream side effect.
+ * where the layout allows no other kind of directory. Also refuses a
+ * Collection directory named by the reserved Collection id, a Collection
+ * packed both as a tombstone and as a Collection directory (a tombstone has
+ * no member entries), and a file whose inline bytes disagree with its
+ * position (see {@link assertBodyFitsPosition}). Walks the tree in the same order
+ * `packDirectory` packs it, before a pack ever exists, so a caller sees the
+ * refusal without any tar-stream side effect.
  * @param options {object}
  * @param options.rootPath {string}   the directory holding `entries`, as an
  *   archive path (no trailing slash)
@@ -202,12 +271,27 @@ function assertEntriesPlaceable({
   rootPath: string
   entries: ArchiveEntry[]
 }): void {
+  const forms = new CollectionForms()
   for (const { parentPath, entry } of walkEntries(entries, rootPath)) {
-    buildArchivePath({
+    const isDirectory = isArchiveDirectory(entry)
+    const path = buildArchivePath({
       parentPath,
       name: entry.name,
-      isDirectory: isArchiveDirectory(entry)
+      isDirectory
     })
+    const position = parseArchivePath(isDirectory ? `${path}/` : path)
+    if (isDirectory && position.area === 'collection') {
+      assertCollectionIdNotReserved(position.collectionId)
+    }
+    const conflict = forms.conflictAt({ position, isFile: !isDirectory })
+    if (conflict !== undefined) {
+      throw new Error(
+        `The Collection "${conflict}" is packed both as a tombstone and as a Collection directory.`
+      )
+    }
+    if ('bytes' in entry) {
+      assertBodyFitsPosition({ path, position, body: entry.bytes })
+    }
   }
 }
 
@@ -316,6 +400,19 @@ async function fillSpaceArchive({
  * directory, a directory that is not a chunk directory nested inside a
  * Collection directory, a directory inside a chunk directory, or an entry name
  * that is empty or embeds a `/`.
+ *
+ * A Collection tombstone is a top-level file named
+ * `.collection.<collectionId>.json` whose body carries `deleted: true`, a
+ * whole write stamp, `_generation`, and no other member, with no Collection
+ * directory of that id. The manifest lists it with `deleted: true`, derived
+ * from its position. The packer refuses a tombstone beside a Collection
+ * directory of the same id, a body in the tombstone position that is not a
+ * tombstone, and a `deleted: true` body inside a Collection directory. It
+ * also refuses a Collection directory named `policy`
+ * (`RESERVED_COLLECTION_ID`).
+ * Inline bytes are checked before any pack is created; a body read through a
+ * `read()` thunk is checked when it is read, and a refusal then fails the
+ * pack's reader.
  * @param options {object}
  * @param options.spaceId {string}
  * @param options.entries {ArchiveEntry[]}   the Space's top-level entries, in

@@ -2,7 +2,6 @@
  * Copyright (c) 2026 Interop Alliance. All rights reserved.
  */
 import fs from 'node:fs'
-import * as tar from 'tar-stream'
 import YAML from 'yaml'
 import { describe, expect, it } from 'vitest'
 import {
@@ -34,28 +33,7 @@ import {
   FIXTURE_RESOURCE_ID,
   FIXTURE_SPACE_ID
 } from '../fixtures/space-archive/generate.js'
-
-/**
- * Packs a raw tar directly (bypassing the Space archive writer), for the
- * malformed inputs the writer itself would never produce.
- * @param entries {Array<{ name: string, body?: string | Uint8Array, header?: object }>}
- *   `header` carries any further tar header fields (a `type`, a `linkname`)
- * @returns {Promise<Uint8Array>}
- */
-async function packRawTar(
-  entries: {
-    name: string
-    body?: string | Uint8Array
-    header?: Partial<tar.Header>
-  }[]
-): Promise<Uint8Array> {
-  const pack = tar.pack()
-  for (const entry of entries) {
-    pack.entry({ ...entry.header, name: entry.name }, entry.body ?? '')
-  }
-  pack.finalize()
-  return collectBytes(pack as unknown as AsyncIterable<Uint8Array>)
-}
+import { packRawTar } from './helpers.js'
 
 /**
  * Wraps bytes as an async generator of small chunks, with a `finally` that

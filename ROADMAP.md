@@ -1,6 +1,6 @@
 # Space Archive Roadmap (open items)
 
-nextAvailableId: 7
+nextAvailableId: 8
 
 Status as of 2026-09-18. Uses the formalized item structure shared with the
 freewallet and was-teaching-server roadmaps.
@@ -116,3 +116,69 @@ is also the natural home for the `ARCHIVE_MANIFEST_FILE`, `ARCHIVE_SPACE_DIR`
 and `ARCHIVE_REVOCATIONS_DIR` constants, which sit in `resourceFileName.ts`
 today although they are path grammar and not file names. Refusing a tree is a
 behavior change to a shared `@interop/*` API, so the CHANGELOG entry names it.
+
+### SAR-7: Carry Collection tombstones in the archive
+
+- status: in-progress
+- priority: medium
+- labels: contract, archive-layout, writer, reader, metadata-file
+- discovered-from: was-teaching-server WAS-174 (2026-10-03)
+- design: was-teaching-server `designs/WAS-96-multi-primary-spaces.md` (section
+  5.4 and wire item 16), with decision 0011 in the WAS spec repo
+- touches:
+  - space-archive (this repo): shipped 2026-10-03, unpublished (0.7.0) -- the
+    `collectionTombstone` path area, the manifest's `deleted: true` on a
+    tombstone entry, the packer's refusals (including a body that is not a
+    strict tombstone and the reserved Collection id `policy`), the reader walk's
+    per-Space refusal of a Collection held both ways,
+    `collectionTombstoneFromFile` (strict body), `isCollectionTombstone`,
+    `collectionMetadataFromFile` refusing a tombstone body; ARCHITECTURE.md
+    (archive layout, layer map, Glossary), README and CHANGELOG.md
+  - was-teaching-server: unresolved -- both backends export a tombstoned
+    Collection in this form and import it (its WAS-174); its ARCHITECTURE.md
+  - wallet-backup: unresolved -- its survey still skips the tombstone in the
+    Space directory, but `collectionMetadataFromFile` now throws on a
+    `deleted: true` body inside a Collection directory (an archive from another
+    writer), and its `src/migrate/archiveSurvey.ts` catches that throw after it
+    has registered the Collection as a live encrypted app Collection; it needs
+    to handle that case when it moves to 0.7.0
+  - portable-wallet-profile-spec: unaffected -- the profile does not yet carry
+    the per-Space archive's internal layout section (PWP-4)
+  - wallet-attached-storage-spec: unresolved -- the Export and Import archive
+    format text names the tombstone entry and the manifest flag (its WASS-48)
+- acceptance:
+  - [x] the packer writes a tombstone as `.collection.<collectionId>.json` in
+        the Space directory with no Collection directory, and the manifest lists
+        it with `deleted: true`; live Collection entries are unchanged
+  - [x] the packer refuses a tombstone beside a Collection directory of the same
+        id, a tombstone-position body that is not a strict tombstone (no
+        `deleted: true`, no whole write stamp, or other members), a
+        `deleted: true` body inside a Collection directory, and the Collection
+        id `policy`
+  - [x] `parseArchivePath` places the tombstone as `collectionTombstone`,
+        `collectionTombstoneFromFile` reads it, and the reader's walk refuses a
+        Collection held both as a tombstone and as a directory
+  - [x] node tests over in-test trees cover the pack, the round trip, and each
+        refusal; the checked-in fixtures are unchanged
+  - [ ] the reference server exports and imports a tombstoned Collection through
+        this form
+
+Context: the WAS reference server is moving Delete Collection from a hard delete
+to a stamped tombstone, so a deleted Collection does not come back from a peer
+that still holds it. The tombstone has to survive an export and import, or a
+restored Space would bring the Collection back the same way. The archive had no
+form for it: every Collection travelled as a directory holding its Metadata
+file, and a deleted one simply vanished from the archive. The accepted form is
+the Collection's `.collection.<id>.json` file, its body the stored tombstone,
+with no directory for that Collection and `deleted: true` on its manifest entry.
+
+A live Collection keeps its Metadata file inside its own directory, so a
+Collection Metadata file directly in the Space directory can only be a
+tombstone. The path grammar and the manifest builder derive the tombstone from
+that position, and the body is checked to agree with it. Deriving it from the
+position keeps the packer's input shape unchanged (a plain top-level file entry)
+and works for a body behind a `read()` thunk, whose bytes are not in hand when
+the manifest is built. The manifest flag is descriptive, as the rest of the
+manifest's `contents` is, so the reader does not check it against the entries.
+The fixtures are left alone: the provenance fixture carries signed statements
+only the server can re-sign, and in-test trees cover the form.

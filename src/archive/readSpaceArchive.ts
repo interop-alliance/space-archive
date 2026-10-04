@@ -19,12 +19,14 @@ import { tarEntries } from '../tarEntries.js'
 import type { TarEntry } from '../tarEntries.js'
 import type { ByteSource } from '../stream.js'
 import {
+  parseArchivePath,
   ARCHIVE_DID_LOG_FILE,
   ARCHIVE_MANIFEST_FILE,
   ARCHIVE_PROVENANCE_FILE,
   ARCHIVE_SERVICE_FILE,
   ARCHIVE_SPACE_DIR
 } from './archivePath.js'
+import { CollectionForms } from './collectionForms.js'
 
 /**
  * A Space archive's `manifest.yml`, as parsed. Only the two members the reader
@@ -181,34 +183,62 @@ function parseServiceDescription(bytes: Uint8Array): Record<string, unknown> {
 }
 
 /**
- * Yields one entry already pulled off the tar walk, then the rest of it. The
- * root-entry peek reads one entry ahead, and this hands that entry back to
- * the caller in its place in the walk. Written as an iterator object
- * rather than a generator so that a `return()` before the first `next()` still
- * tears the walk down: a generator that has not started runs no `finally`.
+ * Yields the archive's content entries: one entry already pulled off the tar
+ * walk, when there is one, then the rest of the walk. The root-entry peek
+ * reads one entry ahead, and this hands that entry back to the caller in its
+ * place in the walk.
+ *
+ * It also refuses an archive in which one Space directory holds both a
+ * Collection tombstone and entries under a Collection directory of the same
+ * id, since a tombstone has no member entries. Only a file entry is a
+ * tombstone. The refusal comes from `next()` when the second of the two is
+ * reached, whichever comes first, and tears the walk down. The bookkeeping
+ * is `collectionForms.ts`'s `CollectionForms`, shared with the packer.
+ *
+ * Written as an iterator object rather than a generator so that a `return()`
+ * before the first `next()` still tears the walk down: a generator that has
+ * not started runs no `finally`.
  * @param options {object}
- * @param options.pending {TarEntry}
+ * @param [options.pending] {TarEntry}
  * @param options.walk {AsyncGenerator<TarEntry>}
  * @returns {AsyncIterableIterator<TarEntry>}
  */
-function replay({
+function contentWalk({
   pending,
   walk
 }: {
-  pending: TarEntry
+  pending?: TarEntry
   walk: AsyncGenerator<TarEntry>
 }): AsyncIterableIterator<TarEntry> {
-  let replayed = false
+  let ahead = pending
+  const forms = new CollectionForms()
+
   const iterator: AsyncIterableIterator<TarEntry> = {
     [Symbol.asyncIterator]() {
       return iterator
     },
     async next() {
-      if (replayed) {
-        return walk.next()
+      let next: IteratorResult<TarEntry>
+      if (ahead !== undefined) {
+        next = { done: false, value: ahead }
+        ahead = undefined
+      } else {
+        next = await walk.next()
       }
-      replayed = true
-      return { done: false, value: pending }
+      if (next.done) {
+        return next
+      }
+      const conflict = forms.conflictAt({
+        position: parseArchivePath(next.value.name),
+        isFile: next.value.type === 'file'
+      })
+      if (conflict !== undefined) {
+        await walk.return(undefined)
+        throw new BundleInvalidError(
+          `The Space archive holds the Collection "${conflict}" both as a tombstone and as a Collection directory.`
+        )
+      }
+      return next
     },
     async return() {
       await walk.return(undefined)
@@ -228,6 +258,13 @@ function replay({
  * as it goes, so it is iterated once and each entry's `bytes()` is called
  * before the walk advances.
  * Bytes that are not a tar are refused with a `BundleInvalidError`.
+ *
+ * A Collection tombstone reaches the walk as an entry whose path parses as
+ * `collectionTombstone`, and its body reads back with
+ * `collectionTombstoneFromFile`. The walk refuses a Collection that is both a
+ * tombstone and a directory. The manifest's `deleted` flag describes the
+ * tombstone and is not checked against the entries, as the rest of the
+ * manifest's `contents` is not: the entry's position and body decide.
  * @param source {ByteSource}   the archive's tar bytes, or a stream of them
  * @returns {Promise<SpaceArchive>}
  */
@@ -307,6 +344,6 @@ export async function readSpaceArchive(
   // leaving the loop (or `close()`) runs its teardown. An entry already pulled
   // off it is yielded ahead of the rest, so the caller sees every content
   // entry exactly once.
-  const entries = pending === undefined ? walk : replay({ pending, walk })
+  const entries = contentWalk({ pending, walk })
   return { spaceId, manifest, service, provenance, didLog, entries, close }
 }

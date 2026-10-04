@@ -22,6 +22,8 @@ export type { ExportSpaceEntry } from './archive/exportManifest.js'
 export {
   collectionGeneratorFromMetadata,
   collectionMetadataFromFile,
+  collectionTombstoneFromFile,
+  isCollectionTombstone,
   spaceMetadataFromFile
 } from './archive/metadataFile.js'
 export { policyFromFile } from './archive/policyFile.js'

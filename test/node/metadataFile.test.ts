@@ -5,6 +5,8 @@ import { describe, expect, it } from 'vitest'
 import {
   collectionGeneratorFromMetadata,
   collectionMetadataFromFile,
+  collectionTombstoneFromFile,
+  isCollectionTombstone,
   policyFromFile,
   spaceMetadataFromFile
 } from '../../src/index.js'
@@ -152,4 +154,48 @@ describe('policyFromFile', () => {
       )
     }
   )
+})
+
+describe('Collection tombstone bodies', () => {
+  const tombstone = {
+    deleted: true,
+    updatedAt: '1970-01-01T00:00:00.000Z',
+    updatedAtCounter: 3,
+    originId: 'zOrigin',
+    _generation: 'gen-1'
+  }
+
+  it('tells a tombstone from a live Collection Metadata object', () => {
+    expect(isCollectionTombstone(tombstone)).toBe(true)
+    expect(isCollectionTombstone({ id: 'notes' })).toBe(false)
+    expect(isCollectionTombstone({ deleted: 'true' })).toBe(false)
+    expect(isCollectionTombstone({ deleted: false })).toBe(false)
+  })
+
+  it('reads a tombstone without the embedded generation', () => {
+    expect(
+      collectionTombstoneFromFile({ bytes: bytesOf(JSON.stringify(tombstone)) })
+    ).toEqual({
+      deleted: true,
+      updatedAt: '1970-01-01T00:00:00.000Z',
+      updatedAtCounter: 3,
+      originId: 'zOrigin'
+    })
+  })
+
+  it('refuses a tombstone file that is not a tombstone', () => {
+    for (const text of ['{"id":"notes"}', '[]', '{not json']) {
+      expect(() =>
+        collectionTombstoneFromFile({ bytes: bytesOf(text) })
+      ).toThrow(
+        expect.objectContaining({ name: 'BundleInvalidError' }) as Error
+      )
+    }
+  })
+
+  it('refuses a tombstone read as a Collection Metadata object', () => {
+    expect(() =>
+      collectionMetadataFromFile({ bytes: bytesOf(JSON.stringify(tombstone)) })
+    ).toThrow(expect.objectContaining({ name: 'BundleInvalidError' }) as Error)
+  })
 })

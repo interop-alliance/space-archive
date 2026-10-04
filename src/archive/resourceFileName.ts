@@ -269,6 +269,29 @@ export function assertSpaceIdNotReserved(spaceId: string): void {
 }
 
 /**
+ * The Collection id the layout reserves: its Collection Metadata file name
+ * would be `.collection.policy.json`, which is the Collection's policy file
+ * ({@link COLLECTION_POLICY_FILE_NAME}). The WAS reserved path segment
+ * registry already keeps the id from a Collection.
+ */
+export const RESERVED_COLLECTION_ID = 'policy'
+
+/**
+ * Refuses the reserved Collection id ({@link RESERVED_COLLECTION_ID}) on the
+ * writing side: the file-name builder and the packer both name a Collection
+ * through here.
+ * @param collectionId {string}
+ * @returns {void}
+ */
+export function assertCollectionIdNotReserved(collectionId: string): void {
+  if (collectionId === RESERVED_COLLECTION_ID) {
+    throw new Error(
+      `The Collection id "${RESERVED_COLLECTION_ID}" is reserved: its Metadata file name would be the Collection policy file's.`
+    )
+  }
+}
+
+/**
  * Builds the file name of a Space Metadata object's file:
  * `.space.<spaceId>.json`. Refuses the reserved Space id
  * ({@link RESERVED_SPACE_ID}).
@@ -284,11 +307,13 @@ export function spaceMetadataFileName(spaceId: string): string {
  * Builds the file name of a Collection Metadata object's file:
  * `.collection.<collectionId>.json`. The one file holds the whole merged
  * object: the configuration members beside `createdAt`, `updatedAt`,
- * `custom`, and `epoch`.
+ * `custom`, and `epoch`. Refuses the reserved Collection id
+ * ({@link RESERVED_COLLECTION_ID}).
  * @param collectionId {string}
  * @returns {string}
  */
 export function collectionMetadataFileName(collectionId: string): string {
+  assertCollectionIdNotReserved(collectionId)
   return `${COLLECTION_FILE_PREFIX}${collectionId}${JSON_FILE_SUFFIX}`
 }
 

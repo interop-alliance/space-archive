@@ -8,7 +8,10 @@
  * `packSpaceArchive` (`exportTar.ts`) names every entry it writes through the
  * builder before a pack is ever created.
  */
-import { parseChunkDirName } from './resourceFileName.js'
+import {
+  parseChunkDirName,
+  parseCollectionMetadataFileName
+} from './resourceFileName.js'
 
 /**
  * The archive's own manifest file name, the first entry of every archive.
@@ -54,7 +57,10 @@ export const ARCHIVE_REVOCATIONS_DIR = 'revocations'
  * tells the two apart by the entry's `type`. `spaceRoot` is the writer's own
  * `space/` directory entry, the one directory the layout holds above a Space
  * id; a bare file named `space` (no trailing slash) matches nothing in the
- * layout and parses as `other`.
+ * layout and parses as `other`. `collectionTombstone` is a Collection
+ * Metadata file (`.collection.<collectionId>.json`) directly in the Space
+ * directory: a live Collection keeps that file in its own directory, so the
+ * position alone marks the Collection deleted.
  */
 export type ArchivePath =
   | { area: 'manifest' }
@@ -63,6 +69,12 @@ export type ArchivePath =
   | { area: 'didLog' }
   | { area: 'spaceRoot' }
   | { area: 'space'; spaceId: string; fileName: string }
+  | {
+      area: 'collectionTombstone'
+      spaceId: string
+      collectionId: string
+      fileName: string
+    }
   | {
       area: 'collection'
       spaceId: string
@@ -83,7 +95,8 @@ export type ArchivePath =
  * Parses an archive entry path into the tree position it addresses. A trailing
  * slash marks a directory entry, which parses as that directory with an empty
  * `fileName`: `space/<id>/<c>/` is the Collection directory `<c>`, where
- * `space/<id>/<name>` without the slash is a file of the Space directory. A
+ * `space/<id>/<name>` without the slash is a file of the Space directory,
+ * or a Collection tombstone when `<name>` is a Collection Metadata file name. A
  * path with an empty segment, one deeper than the layout goes, or a directory
  * where the layout holds none -- a Collection-dir entry that is not a chunk
  * directory, or anything inside a chunk directory -- is `other`.
@@ -141,9 +154,18 @@ export function parseArchivePath(path: string): ArchivePath {
   }
   if (third === undefined) {
     // The only directories a Space directory holds are its Collections.
-    return isDirectory
-      ? { area: 'collection', spaceId, collectionId: second, fileName: '' }
-      : { area: 'space', spaceId, fileName: second }
+    if (isDirectory) {
+      return { area: 'collection', spaceId, collectionId: second, fileName: '' }
+    }
+    const tombstoneId = parseCollectionMetadataFileName(second)
+    return tombstoneId === undefined
+      ? { area: 'space', spaceId, fileName: second }
+      : {
+          area: 'collectionTombstone',
+          spaceId,
+          collectionId: tombstoneId,
+          fileName: second
+        }
   }
   const chunkResourceId = parseChunkDirName(third)
   if (chunkResourceId !== undefined) {
