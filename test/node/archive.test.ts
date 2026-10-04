@@ -3,7 +3,7 @@
  */
 import fs from 'node:fs'
 import YAML from 'yaml'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   byteChunks,
   classifyCollectionFile,
@@ -102,6 +102,9 @@ describe('tarEntries', () => {
     process.on('warning', onWarning)
     try {
       await walkAll(flaggedChunks({ bytes, chunkSize, onClose: () => {} }))
+      // Node delivers the warning on a later tick than the one that added the
+      // listener, so wait for it before detaching.
+      await new Promise(resolve => setTimeout(resolve, 0))
     } finally {
       process.off('warning', onWarning)
     }
@@ -133,6 +136,20 @@ describe('tarEntries', () => {
       throw failure
     }
     await expect(walkAll(failingSource())).rejects.toBe(failure)
+  })
+
+  it('walks past an entry whose bytes were never read', async () => {
+    const bytes = await packRawTar([
+      { name: 'skipped.bin', body: new Uint8Array(1024 * 1024) },
+      { name: 'after.txt', body: 'after' }
+    ])
+    const read: string[] = []
+    for await (const entry of tarEntries(bytes)) {
+      if (entry.name === 'after.txt') {
+        read.push(new TextDecoder().decode(await entry.bytes()))
+      }
+    }
+    expect(read).toEqual(['after'])
   })
 
   it('rejects a second bytes() call and one made after the walk advanced', async () => {
@@ -196,6 +213,7 @@ describe('resource file names', () => {
       resourceId: 'index.html',
       contentType: 'text/html'
     })
+    expect(fileName).toBe('r.index%2Ehtml.text%2Fhtml.html')
     expect(parseResourceFileName(fileName)).toEqual({
       resourceId: 'index.html',
       contentType: 'text/html'
@@ -416,7 +434,14 @@ describe('packSpaceArchive and readSpaceArchive', () => {
   })
 
   it('releases the source on close() and on return() before the walk starts', async () => {
-    const bytes = await packFixtureArchive()
+    // A body large enough that the source is not already exhausted by the
+    // time the archive is opened, so only the release can close it.
+    const bytes = await collectBytes(
+      await packSpaceArchive({
+        spaceId: 's1',
+        entries: [{ name: '.space.s1.json', bytes: new Uint8Array(400_000) }]
+      })
+    )
     for (const release of ['close', 'return'] as const) {
       let closed = false
       const source = flaggedChunks({
@@ -427,6 +452,8 @@ describe('packSpaceArchive and readSpaceArchive', () => {
         }
       })
       const archive = await readSpaceArchive(source)
+      await new Promise(resolve => setTimeout(resolve, 20))
+      expect(closed).toBe(false)
       if (release === 'close') {
         await archive.close()
       } else {
@@ -500,54 +527,44 @@ describe('packSpaceArchive and readSpaceArchive', () => {
     })
   })
 
-  it('refuses an entry tree containing a shape the reader could not place', async () => {
-    const bytes = new TextEncoder().encode('x')
-    const refusedTrees: { label: string; entries: ArchiveEntry[] }[] = [
-      {
-        label: 'a directory nested deeper than a chunk directory',
-        entries: [
-          {
-            name: 'c1',
-            files: [
-              {
-                name: 'd1',
-                files: [{ name: 'd2', files: [{ name: 'f', bytes }] }]
-              }
-            ]
-          }
-        ]
-      },
-      {
-        label:
-          'a directory in a Collection dir whose name is not a chunk directory',
-        entries: [{ name: 'c1', files: [{ name: 'd1', files: [] }] }]
-      },
-      {
-        label: 'a directory inside a chunk directory',
-        entries: [
-          {
-            name: 'c1',
-            files: [
-              { name: '.chunks.note%2E1', files: [{ name: 'sub', files: [] }] }
-            ]
-          }
-        ]
-      },
-      {
-        label: 'an entry with an empty name',
-        entries: [{ name: '', bytes }]
-      },
-      {
-        label: 'an entry name embedding a "/"',
-        entries: [{ name: 'a/b', bytes }]
-      }
-    ]
-    for (const { entries } of refusedTrees) {
+  it.each<{ label: string; entries: ArchiveEntry[]; refusal: RegExp }>([
+    {
+      label:
+        'a directory in a Collection dir whose name is not a chunk directory',
+      entries: [{ name: 'c1', files: [{ name: 'd1', files: [] }] }],
+      refusal: /"space\/s1\/c1\/d1\/" is nested deeper than the layout goes/
+    },
+    {
+      label: 'a directory inside a chunk directory',
+      entries: [
+        {
+          name: 'c1',
+          files: [
+            { name: '.chunks.note%2E1', files: [{ name: 'sub', files: [] }] }
+          ]
+        }
+      ],
+      refusal:
+        /"space\/s1\/c1\/\.chunks\.note%2E1\/sub\/" is nested deeper than the layout goes/
+    },
+    {
+      label: 'an entry with an empty name',
+      entries: [{ name: '', bytes: new Uint8Array(1) }],
+      refusal: /name "" is not a single path segment/
+    },
+    {
+      label: 'an entry name embedding a "/"',
+      entries: [{ name: 'a/b', bytes: new Uint8Array(1) }],
+      refusal: /name "a\/b" is not a single path segment/
+    }
+  ])(
+    'refuses an entry tree the reader could not place: $label',
+    async ({ entries, refusal }) => {
       await expect(
         packSpaceArchive({ spaceId: 's1', entries })
-      ).rejects.toThrow()
+      ).rejects.toThrow(refusal)
     }
-  })
+  )
 
   it('parses every entry of a valid packed archive to a non-other area', async () => {
     const bytes = new TextEncoder().encode('chunk')
@@ -575,9 +592,21 @@ describe('packSpaceArchive and readSpaceArchive', () => {
       )
     )
 
+    const areas: string[] = []
     for await (const entry of archive.entries) {
-      expect(parseArchivePath(entry.name).area).not.toBe('other')
+      areas.push(parseArchivePath(entry.name).area)
     }
+    expect(areas).toEqual([
+      'spaceRoot',
+      'space',
+      'collection',
+      'chunk',
+      'chunk',
+      'chunk',
+      'collection',
+      'revocations',
+      'revocations'
+    ])
   })
 
   it('refuses the reserved Space id', async () => {
@@ -673,7 +702,7 @@ describe('packSpaceArchive and readSpaceArchive', () => {
     ).toBe(FIXTURE_SPACE_ID)
   })
 
-  it('refuses a service.json that is not a JSON object', async () => {
+  it('refuses a service.json that is not JSON', async () => {
     const bytes = await packRawTar([
       {
         name: 'manifest.yml',
@@ -688,6 +717,25 @@ describe('packSpaceArchive and readSpaceArchive', () => {
       /"service.json" is not valid JSON/
     )
   })
+
+  it.each(['[]', 'null', '"text"', '42'])(
+    'refuses a service.json that is not a JSON object: %s',
+    async body => {
+      const bytes = await packRawTar([
+        {
+          name: 'manifest.yml',
+          body: YAML.stringify({
+            'ubc-version': '0.1',
+            contents: { space: { contents: { s1: {} } } }
+          })
+        },
+        { name: 'service.json', body }
+      ])
+      await expect(readSpaceArchive(bytes)).rejects.toThrow(
+        /"service.json" is not an object/
+      )
+    }
+  )
 
   it('passes on a non-file entry named service.json as content', async () => {
     const bytes = await packRawTar([
@@ -826,10 +874,19 @@ describe('packSpaceArchive and readSpaceArchive', () => {
     expect(Buffer.from(packed).equals(checkedIn)).toBe(true)
   })
 
-  it('is byte-reproducible across two packs', async () => {
-    const first = await packFixtureArchive()
-    const second = await packFixtureArchive()
-    expect(Buffer.from(second).equals(Buffer.from(first))).toBe(true)
+  it('is byte-reproducible across two packs made at different times', async () => {
+    // Only the clock is faked: a tar header's mtime has one-second resolution,
+    // so two packs made back to back would agree whatever the packer stamped.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      vi.setSystemTime(new Date('2026-01-01T00:00:00Z'))
+      const first = await packFixtureArchive()
+      vi.setSystemTime(new Date('2027-01-01T00:00:00Z'))
+      const second = await packFixtureArchive()
+      expect(Buffer.from(second).equals(Buffer.from(first))).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('reproduces the checked-in fixture archive', async () => {

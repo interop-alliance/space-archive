@@ -1,5 +1,13 @@
 # @interop/space-archive Changelog
 
+## 0.8.0 - TBD
+
+### Added
+
+- Export `holdsCollectionTombstone({ bytes })`, which tells whether a file's
+  bytes hold a Collection tombstone body. Bytes that are not a JSON object hold
+  none.
+
 ## 0.7.0 - 2026-10-03
 
 ### Added

@@ -9,6 +9,7 @@ import {
   collectionMetadataFileName,
   collectionTombstoneFromFile,
   COLLECTION_URL,
+  holdsCollectionTombstone,
   packSpaceArchive,
   parseArchivePath,
   readSpaceArchive,
@@ -165,7 +166,6 @@ describe('Collection tombstones', () => {
       'space/s1/notes/r.n1.application%2Fjson.json'
     ])
     const tombstonePath = 'space/s1/.collection.old.json'
-    expect(parseArchivePath(tombstonePath).area).toBe('collectionTombstone')
     expect(
       collectionTombstoneFromFile({ bytes: read.get(tombstonePath)! })
     ).toEqual({ deleted: true, ...STAMP })
@@ -378,12 +378,32 @@ describe('Collection tombstones', () => {
         }
       ])
     )
+    expect(JSON.stringify(archive.manifest)).not.toContain('deleted')
     const read = await readAll(archive.entries)
-    const path = 'space/s1/.collection.old.json'
-    expect(parseArchivePath(path).area).toBe('collectionTombstone')
-    expect(collectionTombstoneFromFile({ bytes: read.get(path)! })).toEqual({
-      deleted: true,
-      ...STAMP
-    })
+    // The walk's own entry names are what parse as a tombstone.
+    const tombstonePaths = [...read.keys()].filter(
+      name => parseArchivePath(name).area === 'collectionTombstone'
+    )
+    expect(tombstonePaths).toEqual(['space/s1/.collection.old.json'])
+    expect(
+      collectionTombstoneFromFile({ bytes: read.get(tombstonePaths[0]!)! })
+    ).toEqual({ deleted: true, ...STAMP })
+  })
+})
+
+describe('holdsCollectionTombstone', () => {
+  const encode = (text: string): Uint8Array => new TextEncoder().encode(text)
+
+  it('tells a tombstone body from its bytes', () => {
+    const bytes = encode(JSON.stringify({ deleted: true, ...STAMP }))
+    expect(holdsCollectionTombstone({ bytes })).toBe(true)
+  })
+
+  it('answers false for a live body and for bytes that are not a JSON object', () => {
+    expect(
+      holdsCollectionTombstone({ bytes: encode(JSON.stringify({ name: 'a' })) })
+    ).toBe(false)
+    expect(holdsCollectionTombstone({ bytes: encode('not json') })).toBe(false)
+    expect(holdsCollectionTombstone({ bytes: encode('[]') })).toBe(false)
   })
 })

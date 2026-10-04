@@ -185,9 +185,10 @@ A Collection tombstone's path parses as the `collectionTombstone` area, and
 It requires `deleted: true`, a whole write stamp, and no other member, and
 returns `WriteStamp & { deleted: true }`. `collectionMetadataFromFile` refuses a
 tombstone body, and `isCollectionTombstone(metadata)` tells a parsed body that
-is one. The walk refuses an archive holding one Collection both as a tombstone
-and as a directory. The check is per Space directory, and only a file entry
-counts as a tombstone.
+is one. `holdsCollectionTombstone({ bytes })` asks the same of a file's bytes,
+and answers `false` for bytes that are not a JSON object. The walk refuses an
+archive holding one Collection both as a tombstone and as a directory. The check
+is per Space directory, and only a file entry counts as a tombstone.
 
 ```js
 import {

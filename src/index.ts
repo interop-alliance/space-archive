@@ -23,6 +23,7 @@ export {
   collectionGeneratorFromMetadata,
   collectionMetadataFromFile,
   collectionTombstoneFromFile,
+  holdsCollectionTombstone,
   isCollectionTombstone,
   spaceMetadataFromFile
 } from './archive/metadataFile.js'
