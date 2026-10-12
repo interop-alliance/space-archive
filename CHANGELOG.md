@@ -1,5 +1,11 @@
 # @interop/space-archive Changelog
 
+## 0.8.1 - TBD
+
+### Changed
+
+- Update to latest storage-core 0.36.0.
+
 ## 0.8.0 - 2026-10-03
 
 ### Added
