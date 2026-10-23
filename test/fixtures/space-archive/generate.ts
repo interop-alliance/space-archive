@@ -146,11 +146,11 @@ function fixtureEntries(): ArchiveEntry[] {
         ...FIXTURE_STAMP,
         // The Space Metadata entry travels as the object a server serves, so
         // it carries the server-derived `backends` listing. The counterpart
-        // server exports a single server-configured filesystem backend, which
-        // is what the fixture pins here.
+        // server's filesystem backend, exporting on its own, lists itself
+        // under its fixed id, which is what the fixture pins here.
         backends: [
           {
-            id: 'default',
+            id: 'fs',
             name: 'Server Filesystem',
             managedBy: 'server',
             persistence: 'durable'

@@ -1,5 +1,13 @@
 # @interop/space-archive Changelog
 
+## 0.8.2 - TBD
+
+### Changed
+
+- The fixture archives' Space Metadata entry lists the exporting filesystem
+  backend under its fixed id `fs` in `backends`, as the reference server now
+  exports it, in place of the `default` alias.
+
 ## 0.8.1 - 2026-10-12
 
 ### Changed
