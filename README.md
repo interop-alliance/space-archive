@@ -3,10 +3,10 @@
 [![Node.js CI](https://github.com/interop-alliance/space-archive/workflows/CI/badge.svg)](https://github.com/interop-alliance/space-archive/actions?query=workflow%3A%22CI%22)
 [![NPM Version](https://img.shields.io/npm/v/@interop/space-archive.svg)](https://npm.im/@interop/space-archive)
 
-> Per-Space archive codec for Wallet Attached Storage Space exports: file-name
+> Per-Space archive codec for Portable Web Spaces exports: file-name
 > codec, manifest, packer, reader.
 
-Reads and writes the per-Space export archive a Wallet Attached Storage server
+Reads and writes the per-Space export archive a Portable Web Spaces server
 writes: one tar per Space, carrying a `manifest.yml`, the Space's metadata, its
 Collections, and their Resources under a fixed file-name dialect. Isomorphic
 (browser, Node.js, React Native) and offline -- bytes in, bytes out, no HTTP.
@@ -25,7 +25,7 @@ Collections, and their Resources under a fixed file-name dialect. Isomorphic
 
 This package is the one implementation of the per-Space archive layout: the file
 names, the `manifest.yml` shape, and the pack order. It was moved out of
-`@interop/wallet-backup`, where it started, once the WAS reference server needed
+`@interop/wallet-backup`, where it started, once the PWS reference server needed
 the codec without the rest of that package's dependency tree (the backup bundle
 codec and the migration walk, which stay in `wallet-backup` and consume this
 package).

@@ -66,7 +66,7 @@ space/<spaceId>/<collectionId>/<file>
 space/<spaceId>/<collectionId>/.chunks.<encodedResourceId>/<chunkFile>
 ```
 
-A deleted Collection travels as a Collection tombstone (decision 0011 in the WAS
+A deleted Collection travels as a Collection tombstone (decision 0011 in the PWS
 spec repo). The tombstone is the Collection's `.collection.<id>.json` file,
 moved up into the Space directory, with no `<collectionId>/` directory beside
 it. Its body is the stored tombstone: `deleted: true`, the whole write stamp of
@@ -136,14 +136,14 @@ manifest, which already lists every file.
 1. **One implementation of the archive layout.** This package is the one reader
    and writer of the per-Space archive dialect: the file names, the
    `manifest.yml` shape, and the pack order. `@interop/wallet-backup`'s bundle
-   codec and migration walk, and the WAS reference server, import it rather than
+   codec and migration walk, and the PWS reference server, import it rather than
    re-deriving any of it.
 2. **The packer's output is byte-stable.** Every tar header carries the epoch
    `mtime` (`EXPORT_ENTRY_MTIME`) and entries are written in a fixed order, so
    two packs of an unchanged entry tree are byte-identical. Upheld by
    `exportTar.ts`, and pinned by the checked-in fixture
    `fixtures/space-archive.tar` (rewritten by
-   `test/fixtures/space-archive/generate.ts`), which the WAS reference server's
+   `test/fixtures/space-archive/generate.ts`), which the PWS reference server's
    own export is compared against by a counterpart test. The fixture is
    published with the package, as the subpath export
    `@interop/space-archive/fixtures/space-archive.tar`, so that test pins
@@ -154,7 +154,7 @@ manifest, which already lists every file.
    fixture, `fixtures/space-archive-provenance.tar` (subpath export
    `@interop/space-archive/fixtures/space-archive-provenance.tar`), packs the
    same tree with `provenance.jsonl` and `did.jsonl`. Their bodies are checked
-   in beside the generator as the WAS reference server wrote them, and the
+   in beside the generator as the PWS reference server wrote them, and the
    server's counterpart test reproduces them byte for byte from the same seed
    and log. The fixture tree has the record layout that server exports, write
    stamps included, so a change to that layout regenerates both fixtures and
@@ -182,7 +182,7 @@ manifest, which already lists every file.
    (`UBC_MANIFEST_URL`, `SPACE_URL`, `COLLECTION_URL`, `RESOURCE_URL`,
    `POLICY_URL`, `META_URL`) are copied verbatim from the spec sections they
    document and are never rewritten when a spec moves house. They were corrected
-   once, on 2026-09-20, because the five WAS ones named a host the spec is not
+   once, on 2026-09-20, because the five PWS ones named a host the spec is not
    rendered at and two anchors it does not carry.
 6. **Error names are the contract.** `BundleInvalidError` sets its own `name`,
    and a consumer in another package tells it apart by `err.name`, never by
@@ -196,7 +196,7 @@ manifest, which already lists every file.
 ## Ownership heuristics
 
 - The archive dialect (file names, manifest shape, pack order) is this
-  package's, shared with the WAS reference server, which builds the entry trees
+  package's, shared with the PWS reference server, which builds the entry trees
   out of its own storage backends, and with `@interop/wallet-backup`'s bundle
   codec and migration walk, which read Space archives back out of a bundle. A
   change to the dialect is a change to all three.
@@ -215,7 +215,7 @@ manifest, which already lists every file.
 ## Glossary
 
 - **Per-Space archive** -- the UBC v0.1 export tarball of a single Space, the
-  dialect the WAS reference server writes. Lives in `src/archive/`. Avoid: space
+  dialect the PWS reference server writes. Lives in `src/archive/`. Avoid: space
   export, space dump, inner tar.
 - **Byte source** -- anything the reader accepts as input bytes: a `Uint8Array`,
   a web `ReadableStream`, or an async iterable of chunks. Lives in
@@ -235,7 +235,7 @@ manifest, which already lists every file.
   Written from `packSpaceArchive`'s optional `didLog` option, read back as
   `SpaceArchive.didLog`. Avoid: DID document, server log.
 - **Write stamp** -- the `updatedAt`, `updatedAtCounter` and `originId` members
-  a WAS server stores on each versioned record (a Metadata file, a governing
+  a PWS server stores on each versioned record (a Metadata file, a governing
   history log record, a Resource sidecar and its `meta` member). A Metadata file
   keeps them in its body. This codec carries them as part of the object and does
   not read them. Avoid: version, revision counter.
@@ -256,7 +256,7 @@ manifest, which already lists every file.
   `collectionMetadataFileName` and `packSpaceArchive` (a top-level Collection
   directory of that name) because its Collection Metadata file name would be
   `.collection.policy.json`, the same name as the Collection policy file, so
-  neither a live Metadata file nor a tombstone for it could be named. The WAS
+  neither a live Metadata file nor a tombstone for it could be named. The PWS
   spec's reserved path segment registry already reserves it. Lives in
   `src/archive/resourceFileName.ts` (`RESERVED_COLLECTION_ID`,
   `assertCollectionIdNotReserved`). Avoid: forbidden Collection id, blocked id.

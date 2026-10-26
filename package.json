@@ -1,6 +1,6 @@
 {
   "name": "@interop/space-archive",
-  "description": "Per-Space archive codec for Wallet Attached Storage Space exports: file-name codec, manifest, packer, reader",
+  "description": "Per-Space archive codec for Portable Web Spaces exports: file-name codec, manifest, packer, reader",
   "version": "0.8.2",
   "type": "module",
   "scripts": {
@@ -69,7 +69,7 @@
     "wallet",
     "archive",
     "space",
-    "wallet-attached-storage"
+    "portable-web-spaces"
   ],
   "packageManager": "pnpm@11.5.0",
   "engines": {

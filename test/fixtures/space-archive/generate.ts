@@ -7,7 +7,7 @@
  * `npx tsx test/fixtures/space-archive/generate.ts` to rewrite the tar, which
  * lives at `fixtures/space-archive.tar` under the package root.
  *
- * The fixture exists so a counterpart test in another implementation (the WAS
+ * The fixture exists so a counterpart test in another implementation (the PWS
  * reference server, which builds these trees out of its two storage backends)
  * can assert its export of the same tree is byte-identical to this one. It is
  * published with the package, reachable as the subpath export
@@ -19,7 +19,7 @@
  * Resource representation and that Resource's metadata sidecar, and one
  * Space-scoped revocation record.
  *
- * Each record has the layout the WAS reference server exports. The two
+ * Each record has the layout the PWS reference server exports. The two
  * Metadata files, the governing history log record and the Resource sidecar
  * carry a write stamp (`updatedAt`, `updatedAtCounter`, `originId`), in the
  * member order the server writes. The sidecar also carries its `/meta`
@@ -38,7 +38,7 @@
  * tree with the two provenance root entries beside the manifest:
  * `provenance.jsonl` and `did.jsonl`. Their bodies are checked in beside this
  * file and packed verbatim, since this package neither signs nor verifies.
- * They were written by the WAS reference server exporting this tree at
+ * They were written by the PWS reference server exporting this tree at
  * `https://was.example` with the export-signing key derived from the 32-byte
  * seed of all `0x01` bytes, under a `did:webvh` log whose update key is the
  * `did:key` of the all-`0x02` seed. That log is a single `createDID` entry

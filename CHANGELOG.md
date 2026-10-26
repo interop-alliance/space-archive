@@ -1,5 +1,13 @@
 # @interop/space-archive Changelog
 
+## 0.8.3 - TBD
+
+### Changed
+
+- The manifest `url` of each entry kind points at the renamed Portable Web
+  Spaces (PWS) specification (`portable-web-spaces-spec`); the section anchors
+  are unchanged.
+
 ## 0.8.2 - 2026-10-22
 
 ### Changed
@@ -160,7 +168,7 @@
 ### Fixed
 
 - The manifest's five WAS spec URLs name the spec's rendered host
-  (`https://w3c-ccg.github.io/wallet-attached-storage-spec/`) and, for the
+  (`https://w3c-ccg.github.io/portable-web-spaces-spec/`) and, for the
   Collection Metadata and policy entries, anchors the spec carries
   (`#collection-metadata-data-model`, `#access-control-policies`). The
   checked-in fixture is regenerated under the corrected values.

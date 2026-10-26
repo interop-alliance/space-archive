@@ -271,7 +271,7 @@ export function assertSpaceIdNotReserved(spaceId: string): void {
 /**
  * The Collection id the layout reserves: its Collection Metadata file name
  * would be `.collection.policy.json`, which is the Collection's policy file
- * ({@link COLLECTION_POLICY_FILE_NAME}). The WAS reserved path segment
+ * ({@link COLLECTION_POLICY_FILE_NAME}). The PWS reserved path segment
  * registry already keeps the id from a Collection.
  */
 export const RESERVED_COLLECTION_ID = 'policy'

@@ -53,7 +53,7 @@ the Space's own policy file, `.space.policy.json`. This package now refuses the
 id `policy` on the writing side (`spaceMetadataFileName`, `packSpaceArchive`)
 and exports `RESERVED_SPACE_ID` so a caller can check ahead of time. The
 reservation is not yet consistent across the parties that share this contract.
-The WAS reference server already reserves `policy` for Collection and Resource
+The PWS reference server already reserves `policy` for Collection and Resource
 ids but not for Space ids, so a Space named `policy` can still be created there
 today, even though it can no longer be exported as a per-Space archive. The
 portable-wallet-profile-spec's normative layout text does not mention the
@@ -124,7 +124,7 @@ behavior change to a shared `@interop/*` API, so the CHANGELOG entry names it.
 - labels: contract, archive-layout, writer, reader, metadata-file
 - discovered-from: was-teaching-server WAS-174 (2026-10-03)
 - design: was-teaching-server `designs/WAS-96-multi-primary-spaces.md` (section
-  5.4 and wire item 16), with decision 0011 in the WAS spec repo
+  5.4 and wire item 16), with decision 0011 in the PWS spec repo
 - touches:
   - space-archive (this repo): shipped 2026-10-03, unpublished (0.7.0) -- the
     `collectionTombstone` path area, the manifest's `deleted: true` on a
@@ -144,7 +144,7 @@ behavior change to a shared `@interop/*` API, so the CHANGELOG entry names it.
     to handle that case when it moves to 0.7.0
   - portable-wallet-profile-spec: unaffected -- the profile does not yet carry
     the per-Space archive's internal layout section (PWP-4)
-  - wallet-attached-storage-spec: unresolved -- the Export and Import archive
+  - portable-web-spaces-spec: unresolved -- the Export and Import archive
     format text names the tombstone entry and the manifest flag (its WASS-48)
 - acceptance:
   - [x] the packer writes a tombstone as `.collection.<collectionId>.json` in
@@ -163,7 +163,7 @@ behavior change to a shared `@interop/*` API, so the CHANGELOG entry names it.
   - [ ] the reference server exports and imports a tombstoned Collection through
         this form
 
-Context: the WAS reference server is moving Delete Collection from a hard delete
+Context: the PWS reference server is moving Delete Collection from a hard delete
 to a stamped tombstone, so a deleted Collection does not come back from a peer
 that still holds it. The tombstone has to survive an export and import, or a
 restored Space would bring the Collection back the same way. The archive had no

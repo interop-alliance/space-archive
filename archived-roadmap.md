@@ -72,7 +72,7 @@ node test instead.
   - was-teaching-server: shipped -- no source change; the counterpart test
     `test/space-archive-fixture.test.ts` passes against the regenerated fixture,
     and the CHANGELOG records that exports now name the corrected URLs
-  - wallet-attached-storage-spec: shipped -- the note under the archive
+  - portable-web-spaces-spec: shipped -- the note under the archive
     endpoints now lists all five anchors the manifest names
   - portable-wallet-profile-spec: unresolved -- the normative layout text does
     not quote the manifest's `url` values
@@ -80,14 +80,14 @@ node test instead.
     compares the `url` strings
 - acceptance:
   - [x] all five WAS constants name
-        `https://w3c-ccg.github.io/wallet-attached-storage-spec/`
+        `https://w3c-ccg.github.io/portable-web-spaces-spec/`
   - [x] every anchor the five name exists as a `{#id}` heading in the spec
   - [x] the checked-in fixture's manifest carries the corrected URLs and
         regenerates byte-reproducibly
   - [x] the server's counterpart fixture test passes unchanged
 
 Context: the five WAS constants named the host
-`https://digitalcredentials.github.io/wallet-attached-storage-spec/`, which the
+`https://digitalcredentials.github.io/portable-web-spaces-spec/`, which the
 spec is not rendered at, and two of their anchors -- `#collection-data-model`
 and `#policy` -- named no heading in the spec at all. The corrected anchors are
 `#collection-metadata-data-model` and `#access-control-policies`. The values are
