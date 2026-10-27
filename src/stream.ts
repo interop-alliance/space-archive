@@ -63,7 +63,7 @@ export async function* byteChunks(
 /**
  * Drains a byte source into one `Uint8Array`. For the callers that need the
  * whole thing in hand (a packed archive a test compares byte for byte, a Space
- * tar handed to the migration walk); a streaming caller uses
+ * tar handed to the migration); a streaming caller uses
  * {@link byteChunks} instead.
  * @param source {ByteSource}
  * @returns {Promise<Uint8Array>}

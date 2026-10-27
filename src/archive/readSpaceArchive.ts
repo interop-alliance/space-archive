@@ -3,7 +3,7 @@
  */
 /**
  * The reader half of the per-Space archive codec: a UBC v0.1 Space export tar
- * in, its `manifest.yml` plus a lazy walk of its entries out. The writer
+ * in, its `manifest.yml` plus a lazy cursor over its entries out. The writer
  * (`exportTar.ts`) packs the manifest first, so the manifest is in hand before
  * a single content entry is read and the rest of the archive stays a stream --
  * a Space archive is the largest thing in a backup bundle and is never held
@@ -40,11 +40,11 @@ export interface SpaceArchiveManifest {
 
 /**
  * An opened Space archive: its manifest and Space id, read eagerly, and its
- * remaining entries as a one-shot lazy walk. An entry's `name` is its full
+ * remaining entries as a one-shot entry cursor. An entry's `name` is its full
  * archive path, e.g. `space/<spaceId>/<collectionId>/r.<encId>.<encType>.json`.
- * The source stays open until the walk ends (it runs out, fails, or the caller
- * leaves the loop); a caller that never iterates `entries` calls `close()` to
- * release it.
+ * The source stays open until the cursor ends (it runs out, fails, or the
+ * caller leaves the loop); a caller that never iterates `entries` calls
+ * `close()` to release it.
  */
 export interface SpaceArchive {
   spaceId: string
@@ -183,32 +183,32 @@ function parseServiceDescription(bytes: Uint8Array): Record<string, unknown> {
 }
 
 /**
- * Yields the archive's content entries: one entry already pulled off the tar
- * walk, when there is one, then the rest of the walk. The root-entry peek
+ * Yields the archive's content entries: one entry already pulled off the entry
+ * cursor, when there is one, then the rest of the cursor. The root-entry peek
  * reads one entry ahead, and this hands that entry back to the caller in its
- * place in the walk.
+ * place in the cursor.
  *
  * It also refuses an archive in which one Space directory holds both a
  * Collection tombstone and entries under a Collection directory of the same
  * id, since a tombstone has no member entries. Only a file entry is a
  * tombstone. The refusal comes from `next()` when the second of the two is
- * reached, whichever comes first, and tears the walk down. The bookkeeping
+ * reached, whichever comes first, and tears the cursor down. The bookkeeping
  * is `collectionForms.ts`'s `CollectionForms`, shared with the packer.
  *
  * Written as an iterator object rather than a generator so that a `return()`
- * before the first `next()` still tears the walk down: a generator that has
+ * before the first `next()` still tears the cursor down: a generator that has
  * not started runs no `finally`.
  * @param options {object}
  * @param [options.pending] {TarEntry}
- * @param options.walk {AsyncGenerator<TarEntry>}
+ * @param options.cursor {AsyncGenerator<TarEntry>}
  * @returns {AsyncIterableIterator<TarEntry>}
  */
-function contentWalk({
+function contentCursor({
   pending,
-  walk
+  cursor
 }: {
   pending?: TarEntry
-  walk: AsyncGenerator<TarEntry>
+  cursor: AsyncGenerator<TarEntry>
 }): AsyncIterableIterator<TarEntry> {
   let ahead = pending
   const forms = new CollectionForms()
@@ -223,7 +223,7 @@ function contentWalk({
         next = { done: false, value: ahead }
         ahead = undefined
       } else {
-        next = await walk.next()
+        next = await cursor.next()
       }
       if (next.done) {
         return next
@@ -233,7 +233,7 @@ function contentWalk({
         isFile: next.value.type === 'file'
       })
       if (conflict !== undefined) {
-        await walk.return(undefined)
+        await cursor.return(undefined)
         throw new BundleInvalidError(
           `The Space archive holds the Collection "${conflict}" both as a tombstone and as a Collection directory.`
         )
@@ -241,7 +241,7 @@ function contentWalk({
       return next
     },
     async return() {
-      await walk.return(undefined)
+      await cursor.return(undefined)
       return { done: true, value: undefined }
     }
   }
@@ -254,14 +254,14 @@ function contentWalk({
  * archive carries one and in this order: the exporting server's
  * `service.json`, its `provenance.jsonl`, and its `did.jsonl`. It hands back
  * the manifest, those entries, the Space id the manifest describes, and a
- * one-shot lazy walk of everything after them. The walk consumes the source
+ * one-shot cursor over everything after them. The cursor consumes the source
  * as it goes, so it is iterated once and each entry's `bytes()` is called
- * before the walk advances.
+ * before the cursor advances.
  * Bytes that are not a tar are refused with a `BundleInvalidError`.
  *
- * A Collection tombstone reaches the walk as an entry whose path parses as
+ * A Collection tombstone reaches the cursor as an entry whose path parses as
  * `collectionTombstone`, and its body reads back with
- * `collectionTombstoneFromFile`. The walk refuses a Collection that is both a
+ * `collectionTombstoneFromFile`. The cursor refuses a Collection that is both a
  * tombstone and a directory. The manifest's `deleted` flag describes the
  * tombstone and is not checked against the entries, as the rest of the
  * manifest's `contents` is not: the entry's position and body decide.
@@ -271,10 +271,10 @@ function contentWalk({
 export async function readSpaceArchive(
   source: ByteSource
 ): Promise<SpaceArchive> {
-  const walk = tarEntries(source)
-  const first = await walk.next()
+  const cursor = tarEntries(source)
+  const first = await cursor.next()
   if (first.done || first.value.name !== ARCHIVE_MANIFEST_FILE) {
-    await walk.return(undefined)
+    await cursor.return(undefined)
     throw new BundleInvalidError(
       `The Space archive does not open with a "${ARCHIVE_MANIFEST_FILE}" entry.`
     )
@@ -286,21 +286,21 @@ export async function readSpaceArchive(
     manifest = parseArchiveManifest({ text, label: 'Space archive' })
     spaceId = manifestSpaceId(manifest)
   } catch (err) {
-    // The tar walk is open by now, and with it the source; tear it down
+    // The entry cursor is open by now, and with it the source; tear it down
     // before the refusal travels.
-    await walk.return(undefined)
+    await cursor.return(undefined)
     throw err
   }
 
   async function close(): Promise<void> {
-    await walk.return(undefined)
+    await cursor.return(undefined)
   }
 
   // The writer places `service.json`, `provenance.jsonl` and `did.jsonl`
   // right after the manifest, in that order, each only where it has one. The
   // peek reads entries while each matches the next name still expected, so
   // an archive missing any of them still opens; the first entry that matches
-  // none opens the content, and the walk below yields it.
+  // none opens the content, and the cursor below yields it.
   let service: Record<string, unknown> | undefined
   let provenance: Uint8Array | undefined
   let didLog: Uint8Array | undefined
@@ -312,7 +312,7 @@ export async function readSpaceArchive(
   ]
   try {
     for (;;) {
-      const next = await walk.next()
+      const next = await cursor.next()
       if (next.done) {
         break
       }
@@ -336,14 +336,14 @@ export async function readSpaceArchive(
       }
     }
   } catch (err) {
-    await walk.return(undefined)
+    await cursor.return(undefined)
     throw err
   }
 
-  // The walk is handed back as it stands: the reads above have started it, so
+  // The cursor is handed back as it stands: the reads above have started it, so
   // leaving the loop (or `close()`) runs its teardown. An entry already pulled
   // off it is yielded ahead of the rest, so the caller sees every content
   // entry exactly once.
-  const entries = contentWalk({ pending, walk })
+  const entries = contentCursor({ pending, cursor })
   return { spaceId, manifest, service, provenance, didLog, entries, close }
 }

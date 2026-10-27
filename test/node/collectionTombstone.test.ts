@@ -64,7 +64,7 @@ function treeWithTombstone(): ArchiveEntry[] {
 }
 
 /**
- * Walks an archive's entries to the end, reading each file's bytes.
+ * Drains an archive's entries, reading each file's bytes.
  * @param entries {AsyncIterable<TarEntry>}
  * @returns {Promise<Map<string, Uint8Array>>}   every entry by name, a
  *   directory with empty bytes
@@ -380,7 +380,7 @@ describe('Collection tombstones', () => {
     )
     expect(JSON.stringify(archive.manifest)).not.toContain('deleted')
     const read = await readAll(archive.entries)
-    // The walk's own entry names are what parse as a tombstone.
+    // The cursor's own entry names are what parse as a tombstone.
     const tombstonePaths = [...read.keys()].filter(
       name => parseArchivePath(name).area === 'collectionTombstone'
     )

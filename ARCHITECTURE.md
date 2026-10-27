@@ -20,7 +20,7 @@ the breaking-release audit checks its statements against the code.
 src/index.ts              Public entry point (the export map's only door)
 src/errors.ts             BundleInvalidError, told apart by `name`
 src/stream.ts             Byte-source adapter (Uint8Array / stream / async iterable)
-src/tarEntries.ts         The lazy tar walk the reader shares with its consumers
+src/tarEntries.ts         The entry cursor the reader shares with its consumers
 
 src/archive/manifestUrls.ts      The documenting URLs the archive manifest names
 src/archive/resourceFileName.ts  The on-disk file-name dialect: built, parsed, classified
@@ -53,10 +53,11 @@ provenance.jsonl                   the exporting server's provenance statements,
                                    verbatim; absent when the exporter gave none
 did.jsonl                          the exporting server's DID log snapshot,
                                    verbatim; absent when the exporter gave none
-revocations/                       the Space-scoped zcap revocation records;
-revocations/<record>.json          absent when the Space has none
 space/
 space/<spaceId>/
+space/<spaceId>/.revocations/      the Space-scoped zcap revocation records;
+space/<spaceId>/.revocations/<record>.json
+                                   absent when the Space has none
 space/<spaceId>/<file>             Space-level dot-files
 space/<spaceId>/.collection.<collectionId>.json
                                    a Collection tombstone; no directory for
@@ -90,7 +91,7 @@ with no write stamp or one that keeps live Metadata members. It also refuses a
 `deleted: true` body inside a Collection directory, and a tombstone beside a
 Collection directory of the same id. Inline bytes are checked before the pack is
 created, and a `read()` body when it is read. The reader refuses an archive
-holding one Collection both as a tombstone and as a directory, from the walk,
+holding one Collection both as a tombstone and as a directory, from the cursor,
 when it reaches the second of the two. That check is per Space directory, keyed
 by Space id and Collection id, and only a file entry at the tombstone path
 counts as a tombstone. `collectionTombstoneFromFile` requires `deleted: true`, a
@@ -104,7 +105,7 @@ A chunk directory's entries are packed together. `packDirectory`
 under it before any other entry, so no other entry falls between them. Where the
 directory sits relative to its Resource's representation file is not fixed. The
 profile spec now requires this contiguity of every writer, and a reader may
-refuse an archive that splits a directory. The migration walk in
+refuse an archive that splits a directory. The migration in
 `@interop/wallet-backup` depends on it to buffer one Resource's chunks at a
 time.
 
@@ -136,7 +137,7 @@ manifest, which already lists every file.
 1. **One implementation of the archive layout.** This package is the one reader
    and writer of the per-Space archive dialect: the file names, the
    `manifest.yml` shape, and the pack order. `@interop/wallet-backup`'s bundle
-   codec and migration walk, and the PWS reference server, import it rather than
+   codec and migration, and the PWS reference server, import it rather than
    re-deriving any of it.
 2. **The packer's output is byte-stable.** Every tar header carries the epoch
    `mtime` (`EXPORT_ENTRY_MTIME`) and entries are written in a fixed order, so
@@ -161,15 +162,15 @@ manifest, which already lists every file.
    both bodies.
 3. **Nothing large is held whole.** The reader parses its manifest from the
    first tar entry, reads the small root entries after it (`service.json`,
-   `provenance.jsonl`, `did.jsonl`), and then walks the rest lazily, so at most
-   one Space archive is in memory at a time. The packer mirrors this on the
-   write side: `packSpaceArchive` returns its pack before filling it, and each
-   entry waits for the consumer to read it out before the next one is written,
-   so a large export never queues more than one entry ahead of its reader. The
-   walk is one-shot: a caller iterates it once, and an entry's `bytes()` rejects
-   if called twice or after the walk has moved past it. A caller that opens an
-   archive and never iterates `entries` calls `SpaceArchive.close()` to release
-   the source.
+   `provenance.jsonl`, `did.jsonl`), and then hands the rest back as an entry
+   cursor, so at most one Space archive is in memory at a time. The packer
+   mirrors this on the write side: `packSpaceArchive` returns its pack before
+   filling it, and each entry waits for the consumer to read it out before the
+   next one is written, so a large export never queues more than one entry ahead
+   of its reader. The cursor is one-shot: a caller iterates it once, and an
+   entry's `bytes()` rejects if called twice or after the cursor has moved past
+   it. A caller that opens an archive and never iterates `entries` calls
+   `SpaceArchive.close()` to release the source.
 4. **The codec is isomorphic.** No module under `src/` imports `node:*`, and no
    public type names `Buffer`; bytes are `Uint8Array` and streams arrive as a
    `ByteSource`. A Playwright spec packs and reads an archive in Chromium to
@@ -198,10 +199,10 @@ manifest, which already lists every file.
 - The archive dialect (file names, manifest shape, pack order) is this
   package's, shared with the PWS reference server, which builds the entry trees
   out of its own storage backends, and with `@interop/wallet-backup`'s bundle
-  codec and migration walk, which read Space archives back out of a bundle. A
-  change to the dialect is a change to all three.
+  codec and migration, which read Space archives back out of a bundle. A change
+  to the dialect is a change to all three.
 - The outer bundle container, key derivation, record sealing, roster and epoch
-  handling, and the migration walk belong to `@interop/wallet-backup` and the
+  handling, and the migration belong to `@interop/wallet-backup` and the
   packages it depends on (`@interop/wallet-core`, `@interop/was-client`). This
   package does not read or write bundles, and knows nothing about ciphers or
   rosters. Two pieces are shared with the bundle codec on purpose. The error
@@ -220,6 +221,12 @@ manifest, which already lists every file.
 - **Byte source** -- anything the reader accepts as input bytes: a `Uint8Array`,
   a web `ReadableStream`, or an async iterable of chunks. Lives in
   `src/stream.ts`. Avoid: input stream, reader, source stream.
+- **Entry cursor** -- the lazy, one-shot, forward-only iteration of a tar's
+  entries that `tarEntries` opens and `readSpaceArchive` hands back as
+  `entries`. A caller iterates it once and reads an entry's bytes before
+  advancing; leaving the loop, or reaching its end, releases the byte source.
+  Lives in `src/tarEntries.ts`. Avoid: tar walk, walk, entry stream, scan,
+  traversal.
 - **Service Description entry** -- the archive's `service.json`: the exporting
   server's Service Description, carried verbatim beside `manifest.yml`. Written
   from `packSpaceArchive`'s optional `service` option, read back as

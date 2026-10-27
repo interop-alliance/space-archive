@@ -64,18 +64,18 @@ async function* flaggedChunks({
 }
 
 /**
- * Walks a tar to its end, reading every entry's bytes.
+ * Drains a tar, reading every entry's bytes.
  * @param source {ByteSource}
  * @returns {Promise<void>}
  */
-async function walkAll(source: ByteSource): Promise<void> {
+async function drainTar(source: ByteSource): Promise<void> {
   for await (const entry of tarEntries(source)) {
     await entry.bytes()
   }
 }
 
 /**
- * Collects the names of a walk's entries, in order.
+ * Collects the names of a cursor's entries, in order.
  * @param entries {AsyncIterable<TarEntry>}
  * @returns {Promise<string[]>}
  */
@@ -88,7 +88,7 @@ async function namesOf(entries: AsyncIterable<TarEntry>): Promise<string[]> {
 }
 
 describe('tarEntries', () => {
-  it('walks a large archive fed in small chunks without leaking listeners', async () => {
+  it('reads a large archive fed in small chunks without leaking listeners', async () => {
     const entrySize = 20 * 1024 * 1024
     const bytes = await packRawTar([
       { name: 'big.bin', body: Buffer.alloc(entrySize) }
@@ -101,7 +101,7 @@ describe('tarEntries', () => {
     }
     process.on('warning', onWarning)
     try {
-      await walkAll(flaggedChunks({ bytes, chunkSize, onClose: () => {} }))
+      await drainTar(flaggedChunks({ bytes, chunkSize, onClose: () => {} }))
       // Node delivers the warning on a later tick than the one that added the
       // listener, so wait for it before detaching.
       await new Promise(resolve => setTimeout(resolve, 0))
@@ -123,7 +123,7 @@ describe('tarEntries', () => {
   it('refuses a truncated archive as an invalid bundle', async () => {
     const bytes = await packFixtureArchive()
     const truncated = bytes.subarray(0, 700)
-    await expect(walkAll(truncated)).rejects.toMatchObject({
+    await expect(drainTar(truncated)).rejects.toMatchObject({
       name: 'BundleInvalidError'
     })
   })
@@ -135,10 +135,10 @@ describe('tarEntries', () => {
       yield bytes.subarray(0, 512)
       throw failure
     }
-    await expect(walkAll(failingSource())).rejects.toBe(failure)
+    await expect(drainTar(failingSource())).rejects.toBe(failure)
   })
 
-  it('walks past an entry whose bytes were never read', async () => {
+  it('advances past an entry whose bytes were never read', async () => {
     const bytes = await packRawTar([
       { name: 'skipped.bin', body: new Uint8Array(1024 * 1024) },
       { name: 'after.txt', body: 'after' }
@@ -152,24 +152,24 @@ describe('tarEntries', () => {
     expect(read).toEqual(['after'])
   })
 
-  it('rejects a second bytes() call and one made after the walk advanced', async () => {
+  it('rejects a second bytes() call and one made after the cursor advanced', async () => {
     const bytes = await packRawTar([
       { name: 'first.bin', body: new Uint8Array(3000) },
       { name: 'second.bin', body: new Uint8Array(10) }
     ])
-    const walk = tarEntries(bytes)
-    const first = await walk.next()
+    const cursor = tarEntries(bytes)
+    const first = await cursor.next()
     if (first.done) {
       throw new Error('expected an entry')
     }
     expect((await first.value.bytes()).byteLength).toBe(3000)
     await expect(first.value.bytes()).rejects.toThrow(/already read/)
 
-    const second = await walk.next()
+    const second = await cursor.next()
     if (second.done) {
       throw new Error('expected an entry')
     }
-    await walk.next()
+    await cursor.next()
     await expect(second.value.bytes()).rejects.toThrow(/moved past/)
   })
 })
@@ -302,14 +302,14 @@ describe('packSpaceArchive and readSpaceArchive', () => {
     expect(entries.map(entry => entry.name)).toEqual([
       'space/',
       `space/${FIXTURE_SPACE_ID}/`,
+      `space/${FIXTURE_SPACE_ID}/.revocations/`,
+      `space/${FIXTURE_SPACE_ID}/.revocations/urn%3Auuid%3Afixture-revocation.json`,
       `space/${FIXTURE_SPACE_ID}/.space.${FIXTURE_SPACE_ID}.json`,
       `space/${FIXTURE_SPACE_ID}/${FIXTURE_COLLECTION_ID}/`,
       `space/${FIXTURE_SPACE_ID}/${FIXTURE_COLLECTION_ID}/.collection.${FIXTURE_COLLECTION_ID}.json`,
       `space/${FIXTURE_SPACE_ID}/${FIXTURE_COLLECTION_ID}/.collectionlog.${FIXTURE_COLLECTION_ID}.json`,
       `space/${FIXTURE_SPACE_ID}/${FIXTURE_COLLECTION_ID}/.meta.${FIXTURE_RESOURCE_ID}.json`,
-      `space/${FIXTURE_SPACE_ID}/${FIXTURE_COLLECTION_ID}/r.note%2E1.application%2Fjson.json`,
-      'revocations/',
-      'revocations/urn%3Auuid%3Afixture-revocation.json'
+      `space/${FIXTURE_SPACE_ID}/${FIXTURE_COLLECTION_ID}/r.note%2E1.application%2Fjson.json`
     ])
 
     const representationPath = `space/${FIXTURE_SPACE_ID}/${FIXTURE_COLLECTION_ID}/r.note%2E1.application%2Fjson.json`
@@ -416,7 +416,7 @@ describe('packSpaceArchive and readSpaceArchive', () => {
       { name: 'manifest.yml', body: YAML.stringify({ 'ubc-version': '0.1' }) },
       // Padding so the source is not already exhausted by the time the
       // manifest read refuses: large enough that the pump is still feeding it
-      // when the refusal tears the walk down.
+      // when the refusal tears the cursor down.
       { name: 'padding.bin', body: new Uint8Array(400_000) }
     ])
     let closed = false
@@ -433,7 +433,7 @@ describe('packSpaceArchive and readSpaceArchive', () => {
     expect(closed).toBe(true)
   })
 
-  it('releases the source on close() and on return() before the walk starts', async () => {
+  it('releases the source on close() and on return() before the cursor starts', async () => {
     // A body large enough that the source is not already exhausted by the
     // time the archive is opened, so only the release can close it.
     const bytes = await collectBytes(
@@ -513,18 +513,29 @@ describe('packSpaceArchive and readSpaceArchive', () => {
   })
 
   it('parses revocations entries as flat files only', () => {
-    expect(parseArchivePath('revocations/')).toEqual({
+    expect(parseArchivePath('space/s/.revocations/')).toEqual({
       area: 'revocations',
+      spaceId: 's',
       fileName: ''
     })
-    expect(parseArchivePath('revocations/r1.json')).toEqual({
+    expect(parseArchivePath('space/s/.revocations/r1.json')).toEqual({
       area: 'revocations',
+      spaceId: 's',
       fileName: 'r1.json'
     })
-    expect(parseArchivePath('revocations/d1/')).toEqual({ area: 'other' })
-    expect(parseArchivePath('revocations/d1/r1.json')).toEqual({
+    // A file named `.revocations` in the Space directory has no place.
+    expect(parseArchivePath('space/s/.revocations')).toEqual({
       area: 'other'
     })
+    expect(parseArchivePath('space/s/.revocations/d1/')).toEqual({
+      area: 'other'
+    })
+    expect(parseArchivePath('space/s/.revocations/d1/r1.json')).toEqual({
+      area: 'other'
+    })
+    // The old top-level root is no longer part of the layout.
+    expect(parseArchivePath('revocations/')).toEqual({ area: 'other' })
+    expect(parseArchivePath('revocations/r1.json')).toEqual({ area: 'other' })
   })
 
   it.each<{ label: string; entries: ArchiveEntry[]; refusal: RegExp }>([
@@ -573,6 +584,7 @@ describe('packSpaceArchive and readSpaceArchive', () => {
         await packSpaceArchive({
           spaceId: 's1',
           entries: [
+            { name: '.revocations', files: [{ name: 'r1.json', bytes }] },
             {
               name: 'c1',
               files: [
@@ -586,8 +598,7 @@ describe('packSpaceArchive and readSpaceArchive', () => {
                 { name: 'r.note%2E1.text%2Fplain.txt', bytes }
               ]
             }
-          ],
-          revocations: [{ name: 'r1.json', bytes }]
+          ]
         })
       )
     )
@@ -599,13 +610,13 @@ describe('packSpaceArchive and readSpaceArchive', () => {
     expect(areas).toEqual([
       'spaceRoot',
       'space',
-      'collection',
-      'chunk',
-      'chunk',
-      'chunk',
-      'collection',
       'revocations',
-      'revocations'
+      'revocations',
+      'collection',
+      'chunk',
+      'chunk',
+      'chunk',
+      'collection'
     ])
   })
 

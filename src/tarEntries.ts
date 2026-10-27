@@ -2,12 +2,12 @@
  * Copyright (c) 2026 Interop Alliance. All rights reserved.
  */
 /**
- * The lazy tar walk both readers share: a byte source in, one entry at a time
+ * The entry cursor both readers share: a byte source in, one entry at a time
  * out, with each entry's bytes read on demand. Nothing is buffered beyond the
- * entry the caller is holding, so a Space archive of any size walks in bounded
- * memory, and a caller that stops early (the bundle reader, once it has found
- * the Space archive it wanted) tears the extraction down rather than draining
- * the rest.
+ * entry the caller is holding, so a Space archive of any size is read in
+ * bounded memory, and a caller that stops early (the bundle reader, once it
+ * has found the Space archive it wanted) tears the extraction down rather than
+ * draining the rest.
  */
 import * as tar from 'tar-stream'
 import { BundleInvalidError } from './errors.js'
@@ -30,7 +30,7 @@ export interface TarEntry {
  * large source never outruns the consumer. A failure on either side destroys
  * the extraction, which is where the caller's `for await` sees it. Resolves
  * with the source's own failure as `sourceError`, when there was one, so the
- * walk can tell it from a malformed tar.
+ * cursor can tell it from a malformed tar.
  * @param options {object}
  * @param options.extract {tar.Extract}
  * @param options.source {ByteSource}
@@ -47,7 +47,7 @@ async function pumpIntoExtract({
     for await (const chunk of byteChunks(source)) {
       // A consumer that stopped early destroyed the extraction, and nothing
       // written from here on would ever drain: the wait below would never
-      // settle and the walk's teardown would hang on this pump.
+      // settle and the cursor's teardown would hang on this pump.
       if (extract.destroyed) {
         return {}
       }
@@ -55,7 +55,7 @@ async function pumpIntoExtract({
         await new Promise<void>(resolve => {
           // Only one of the three fires per wait, so whichever does takes the
           // other two listeners down with it. The extraction's own failure
-          // reaches the walk through its `for await`, so it only ends the
+          // reaches the cursor through its `for await`, so it only ends the
           // wait here.
           function settle(): void {
             extract.off('drain', settle)
@@ -83,12 +83,13 @@ async function pumpIntoExtract({
 }
 
 /**
- * Walks a tar archive's entries in archive order. One-shot: the returned
- * iterator consumes the source as it goes, so it cannot be restarted or read
- * twice. An entry's `bytes()` is called at most once, and before the walk
- * advances; any other call rejects rather than resolving to nothing. Bytes
- * that do not parse as a tar (garbage, a truncated archive) are refused with
- * a `BundleInvalidError`; a failure of the source itself travels as thrown.
+ * Opens an entry cursor over a tar archive, in archive order. One-shot: the
+ * returned iterator consumes the source as it goes, so it cannot be restarted
+ * or read twice. An entry's `bytes()` is called at most once, and before the
+ * cursor advances; any other call rejects rather than resolving to nothing.
+ * Bytes that do not parse as a tar (garbage, a truncated archive) are refused
+ * with a `BundleInvalidError`; a failure of the source itself travels as
+ * thrown.
  * @param source {ByteSource}
  * @returns {AsyncGenerator<TarEntry>}
  */
@@ -96,13 +97,13 @@ export async function* tarEntries(
   source: ByteSource
 ): AsyncGenerator<TarEntry> {
   const extract = tar.extract()
-  // Not awaited: the pump runs alongside the walk below, and its failures
+  // Not awaited: the pump runs alongside the cursor below, and its failures
   // reach the caller by destroying the extraction stream.
   const pumped = pumpIntoExtract({ extract, source })
 
-  // What a failed walk throws: the source's own failure when it had one,
+  // What a failed cursor throws: the source's own failure when it had one,
   // and otherwise a refusal of the bytes, since the tar did not parse.
-  async function walkFailure(err: unknown): Promise<unknown> {
+  async function cursorFailure(err: unknown): Promise<unknown> {
     extract.destroy()
     const pumpResult = await pumped
     if ('sourceError' in pumpResult) {
@@ -128,7 +129,7 @@ export async function* tarEntries(
           }
           if (advanced) {
             throw new Error(
-              `The tar walk has moved past entry "${entry.header.name}"; its bytes are read before the walk advances.`
+              `The entry cursor has moved past entry "${entry.header.name}"; its bytes are read before the cursor advances.`
             )
           }
           consumed = true
@@ -138,8 +139,8 @@ export async function* tarEntries(
             )
           } catch (err) {
             // A body cut short fails here, in the caller's read, before the
-            // walk itself sees it.
-            throw await walkFailure(err)
+            // cursor itself sees it.
+            throw await cursorFailure(err)
           }
         }
       }
@@ -151,7 +152,7 @@ export async function* tarEntries(
       }
     }
   } catch (err) {
-    throw await walkFailure(err)
+    throw await cursorFailure(err)
   } finally {
     extract.destroy()
     await pumped

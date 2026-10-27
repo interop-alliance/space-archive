@@ -46,10 +46,12 @@ export const ARCHIVE_DID_LOG_FILE = 'did.jsonl'
 export const ARCHIVE_SPACE_DIR = 'space'
 
 /**
- * The archive's top-level directory holding the Space-scoped zcap revocation
- * records; absent when the Space has none.
+ * The subdirectory of the Space directory holding the Space-scoped zcap
+ * revocation records (`space/<spaceId>/.revocations/<file>`); absent when the
+ * Space has none. The parser gives this name to the revocations directory
+ * ahead of the Collection branch, so no Collection directory parses under it.
  */
-export const ARCHIVE_REVOCATIONS_DIR = 'revocations'
+export const ARCHIVE_REVOCATIONS_DIR = '.revocations'
 
 /**
  * Where one archive path sits in the archive tree. A directory entry carries
@@ -88,7 +90,7 @@ export type ArchivePath =
       resourceId: string
       fileName: string
     }
-  | { area: 'revocations'; fileName: string }
+  | { area: 'revocations'; spaceId: string; fileName: string }
   | { area: 'other' }
 
 /**
@@ -96,10 +98,12 @@ export type ArchivePath =
  * slash marks a directory entry, which parses as that directory with an empty
  * `fileName`: `space/<id>/<c>/` is the Collection directory `<c>`, where
  * `space/<id>/<name>` without the slash is a file of the Space directory,
- * or a Collection tombstone when `<name>` is a Collection Metadata file name. A
- * path with an empty segment, one deeper than the layout goes, or a directory
- * where the layout holds none -- a Collection-dir entry that is not a chunk
- * directory, or anything inside a chunk directory -- is `other`.
+ * or a Collection tombstone when `<name>` is a Collection Metadata file name.
+ * `space/<id>/.revocations/` is the Space's revocations directory, whose
+ * entries are flat files. A path with an empty segment, one deeper than the
+ * layout goes, or a directory where the layout holds none -- a Collection-dir
+ * entry that is not a chunk directory, anything inside a chunk directory, or
+ * a directory inside the revocations directory -- is `other`.
  * @param path {string}
  * @returns {ArchivePath}
  */
@@ -123,18 +127,6 @@ export function parseArchivePath(path: string): ArchivePath {
     return { area: 'other' }
   }
   const [root, ...rest] = segments
-  if (root === ARCHIVE_REVOCATIONS_DIR) {
-    const [fileName] = rest
-    if (fileName === undefined) {
-      return isDirectory
-        ? { area: 'revocations', fileName: '' }
-        : { area: 'other' }
-    }
-    // Revocation records are flat files: no nesting under `revocations/`.
-    return rest.length > 1 || isDirectory
-      ? { area: 'other' }
-      : { area: 'revocations', fileName }
-  }
   if (root !== ARCHIVE_SPACE_DIR) {
     return { area: 'other' }
   }
@@ -152,8 +144,19 @@ export function parseArchivePath(path: string): ArchivePath {
       ? { area: 'space', spaceId, fileName: '' }
       : { area: 'other' }
   }
+  if (second === ARCHIVE_REVOCATIONS_DIR) {
+    if (third === undefined) {
+      return isDirectory
+        ? { area: 'revocations', spaceId, fileName: '' }
+        : { area: 'other' }
+    }
+    // Revocation records are flat files: no nesting under `.revocations/`.
+    return fourth !== undefined || isDirectory
+      ? { area: 'other' }
+      : { area: 'revocations', spaceId, fileName: third }
+  }
   if (third === undefined) {
-    // The only directories a Space directory holds are its Collections.
+    // The only other directory a Space directory holds is a Collection.
     if (isDirectory) {
       return { area: 'collection', spaceId, collectionId: second, fileName: '' }
     }
@@ -215,8 +218,7 @@ export function parseArchivePath(path: string): ArchivePath {
  * @param options.name {string}   the entry's own name; refused if empty or if
  *   it embeds a `/`
  * @param [options.parentPath] {string}   the parent directory's own archive
- *   path (no trailing slash); omitted for a top-level root (`space/`,
- *   `revocations/`)
+ *   path (no trailing slash); omitted for the top-level root (`space/`)
  * @param options.isDirectory {boolean}
  * @returns {string}   the entry's archive path, without a trailing slash even
  *   for a directory -- the caller appends one for the tar header

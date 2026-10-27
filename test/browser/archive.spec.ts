@@ -63,14 +63,14 @@ test('reads the checked-in fixture archive from a fetched stream', async ({
   expect(result.names).toEqual([
     'space/',
     'space/zFixtureSpace/',
+    'space/zFixtureSpace/.revocations/',
+    'space/zFixtureSpace/.revocations/urn%3Auuid%3Afixture-revocation.json',
     'space/zFixtureSpace/.space.zFixtureSpace.json',
     'space/zFixtureSpace/notes/',
     'space/zFixtureSpace/notes/.collection.notes.json',
     'space/zFixtureSpace/notes/.collectionlog.notes.json',
     'space/zFixtureSpace/notes/.meta.note.1.json',
-    'space/zFixtureSpace/notes/r.note%2E1.application%2Fjson.json',
-    'revocations/',
-    'revocations/urn%3Auuid%3Afixture-revocation.json'
+    'space/zFixtureSpace/notes/r.note%2E1.application%2Fjson.json'
   ])
   expect(JSON.parse(result.representation)).toEqual({ note: 'hello' })
 })

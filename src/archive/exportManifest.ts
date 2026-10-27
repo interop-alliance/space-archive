@@ -38,12 +38,13 @@ export const EXPORT_ENTRY_MTIME = new Date(0)
 
 /**
  * One top-level entry of the Space being exported, in archive order: a
- * Space-level file (`files` absent) or a Collection directory with its ordered
- * file names.
+ * Space-level file (`files` absent), a Collection directory with its ordered
+ * file names, or the Space's revocations directory
+ * (`ARCHIVE_REVOCATIONS_DIR`) with its ordered record file names.
  */
 export interface ExportSpaceEntry {
   name: string
-  /** present for a Collection directory: its file names, in archive order */
+  /** present for a directory: its file names, in archive order */
   files?: string[]
 }
 
@@ -98,13 +99,12 @@ function spaceManifestEntry(fileName: string): unknown {
  * files interleaved with Collection directories); the manifest mirrors that
  * order. A Collection tombstone (a `.collection.<collectionId>.json` file
  * among the Space-level files) is listed with `deleted: true`; a live
- * Collection's entries carry no `deleted` member.
+ * Collection's entries carry no `deleted` member. The Space's revocations
+ * directory is listed by its file names, with no documenting `url`, since no
+ * specification section describes the records yet.
  * @param options {object}
  * @param options.spaceId {string}
  * @param options.entries {ExportSpaceEntry[]}   ordered top-level entries
- * @param [options.revocationFiles] {string[]}   ordered file names of the
- *   archive's Space-scoped zcap revocation records (`revocations/` entries);
- *   omitted from the manifest when the Space has none
  * @param [options.provenance] {boolean}   whether the archive carries a
  *   `provenance.jsonl` entry, listed right after the manifest's own entry
  * @param [options.didLog] {boolean}   whether the archive carries a
@@ -114,13 +114,11 @@ function spaceManifestEntry(fileName: string): unknown {
 export function buildExportManifest({
   spaceId,
   entries,
-  revocationFiles = [],
   provenance = false,
   didLog = false
 }: {
   spaceId: string
   entries: ExportSpaceEntry[]
-  revocationFiles?: string[]
   provenance?: boolean
   didLog?: boolean
 }): object {
@@ -128,6 +126,10 @@ export function buildExportManifest({
   for (const entry of entries) {
     if (entry.files === undefined) {
       spaceContents.push(spaceManifestEntry(entry.name))
+      continue
+    }
+    if (entry.name === ARCHIVE_REVOCATIONS_DIR) {
+      spaceContents.push({ [entry.name]: { contents: entry.files } })
       continue
     }
     spaceContents.push({
@@ -145,9 +147,6 @@ export function buildExportManifest({
       // describes either entry yet.
       ...(provenance && { [ARCHIVE_PROVENANCE_FILE]: {} }),
       ...(didLog && { [ARCHIVE_DID_LOG_FILE]: {} }),
-      ...(revocationFiles.length > 0 && {
-        [ARCHIVE_REVOCATIONS_DIR]: { contents: [...revocationFiles] }
-      }),
       [ARCHIVE_SPACE_DIR]: {
         url: SPACE_URL,
         contents: {

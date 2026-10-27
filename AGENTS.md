@@ -140,12 +140,12 @@ Rules:
 This package owns one contract: the per-Space archive layout (the file-name
 dialect, the manifest shape, the pack order). Every repo that implements or
 consumes it is listed below with the modules that speak it. **The maintenance
-rule: a change to the layout's shape is a walk of this table** -- for each row,
-resolve the impact as shipped (naming what landed, including that row's
-ARCHITECTURE/AGENTS docs) or explicitly waived (`unaffected: <repo> (<why>)`). A
-breaking change is named as such in each implementing package's CHANGELOG. The
-layout has a counterpart test on each side: this repo's checked-in fixture
-(`fixtures/space-archive.tar`, rewritten by
+rule: a change to the layout's shape is a pass over every row of this table** --
+for each row, resolve the impact as shipped (naming what landed, including that
+row's ARCHITECTURE/AGENTS docs) or explicitly waived
+(`unaffected: <repo> (<why>)`). A breaking change is named as such in each
+implementing package's CHANGELOG. The layout has a counterpart test on each
+side: this repo's checked-in fixture (`fixtures/space-archive.tar`, rewritten by
 `test/fixtures/space-archive/generate.ts` and published as the subpath export
 `@interop/space-archive/fixtures/space-archive.tar`) and the server's
 `test/space-archive-fixture.test.ts`, which stages the same tree in a backend
@@ -156,7 +156,7 @@ and asserts its export is byte-identical to the published fixture.
 | portable-wallet-profile-spec | The normative layout text: the per-Space archive's file names, manifest and entry order. The spec governs; this codec follows it.                                                                                                                                                                                                                                | PWP-4          |
 | space-archive (this repo)    | `src/archive/` is the one reader and writer of the layout.                                                                                                                                                                                                                                                                                                       |                |
 | was-teaching-server          | Both storage backends write their Space export through this package's `packSpaceArchive` (`src/backends/filesystem.ts`, `src/backends/postgres.ts`), and `src/lib/importTar.ts` reads the same dialect back. Counterpart test: `test/space-archive-fixture.test.ts` over the published `fixtures/space-archive.tar` and `fixtures/space-archive-provenance.tar`. |                |
-| wallet-backup                | Reader: the bundle codec and the migration walk consume `readSpaceArchive`, `parseArchiveManifest`, the classifier helpers, and the byte-source / tar-walk helpers this package exports.                                                                                                                                                                         |                |
+| wallet-backup                | Reader: the bundle codec and the migration consume `readSpaceArchive`, `parseArchiveManifest`, the classifier helpers, and the byte-source / entry-cursor helpers this package exports.                                                                                                                                                                          |                |
 
 ## Decision Records
 

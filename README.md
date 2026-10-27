@@ -3,8 +3,8 @@
 [![Node.js CI](https://github.com/interop-alliance/space-archive/workflows/CI/badge.svg)](https://github.com/interop-alliance/space-archive/actions?query=workflow%3A%22CI%22)
 [![NPM Version](https://img.shields.io/npm/v/@interop/space-archive.svg)](https://npm.im/@interop/space-archive)
 
-> Per-Space archive codec for Portable Web Spaces exports: file-name
-> codec, manifest, packer, reader.
+> Per-Space archive codec for Portable Web Spaces exports: file-name codec,
+> manifest, packer, reader.
 
 Reads and writes the per-Space export archive a Portable Web Spaces server
 writes: one tar per Space, carrying a `manifest.yml`, the Space's metadata, its
@@ -27,7 +27,7 @@ This package is the one implementation of the per-Space archive layout: the file
 names, the `manifest.yml` shape, and the pack order. It was moved out of
 `@interop/wallet-backup`, where it started, once the PWS reference server needed
 the codec without the rest of that package's dependency tree (the backup bundle
-codec and the migration walk, which stay in `wallet-backup` and consume this
+codec and the migration, which stay in `wallet-backup` and consume this
 package).
 
 ## Security
@@ -155,13 +155,13 @@ for await (const entry of space.entries) {
 
 The reader parses the manifest from the first tar entry, reads `service.json`,
 `provenance.jsonl` and `did.jsonl` when the archive carries them (the entries
-after it, in that order), and then walks the rest lazily: at most one Space
-archive is held in memory at a time, and the walk is one-shot -- iterate it
-once, and call each entry's `bytes()` once before moving to the next. A second
-call to `bytes()`, or one made after the walk has moved past that entry,
-rejects. Bytes that are not a tar, or a truncated archive, are refused with a
-`BundleInvalidError`. A caller that opens an archive and never iterates
-`entries` calls `space.close()` to release the underlying source.
+after it, in that order), and then hands the rest back as an entry cursor: at
+most one Space archive is held in memory at a time, and the cursor is one-shot
+-- iterate it once, and call each entry's `bytes()` once before moving to the
+next. A second call to `bytes()`, or one made after the cursor has moved past
+that entry, rejects. Bytes that are not a tar, or a truncated archive, are
+refused with a `BundleInvalidError`. A caller that opens an archive and never
+iterates `entries` calls `space.close()` to release the underlying source.
 
 A Metadata file stores its object with its generation embedded as the reserved
 `_generation` member. The write stamp (`updatedAt`, `updatedAtCounter`,
@@ -186,7 +186,7 @@ It requires `deleted: true`, a whole write stamp, and no other member, and
 returns `WriteStamp & { deleted: true }`. `collectionMetadataFromFile` refuses a
 tombstone body, and `isCollectionTombstone(metadata)` tells a parsed body that
 is one. `holdsCollectionTombstone({ bytes })` asks the same of a file's bytes,
-and answers `false` for bytes that are not a JSON object. The walk refuses an
+and answers `false` for bytes that are not a JSON object. The cursor refuses an
 archive holding one Collection both as a tombstone and as a directory. The check
 is per Space directory, and only a file entry counts as a tombstone.
 
@@ -214,7 +214,7 @@ The package's root export is documented in [ARCHITECTURE.md](ARCHITECTURE.md);
 in short: the archive codec (`packSpaceArchive`, `readSpaceArchive`, the
 manifest, file-name, Metadata file, and policy file helpers), the
 `BundleInvalidError` the reader raises on a malformed archive, and the
-byte-source (`ByteSource`, `byteChunks`, `collectBytes`) and tar-walk
+byte-source (`ByteSource`, `byteChunks`, `collectBytes`) and entry-cursor
 (`tarEntries`, `TarEntry`) helpers a caller needs to build or consume a
 `ByteSource`.
 

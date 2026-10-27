@@ -144,8 +144,8 @@ behavior change to a shared `@interop/*` API, so the CHANGELOG entry names it.
     to handle that case when it moves to 0.7.0
   - portable-wallet-profile-spec: unaffected -- the profile does not yet carry
     the per-Space archive's internal layout section (PWP-4)
-  - portable-web-spaces-spec: unresolved -- the Export and Import archive
-    format text names the tombstone entry and the manifest flag (its WASS-48)
+  - portable-web-spaces-spec: unresolved -- the Export and Import archive format
+    text names the tombstone entry and the manifest flag (its WASS-48)
 - acceptance:
   - [x] the packer writes a tombstone as `.collection.<collectionId>.json` in
         the Space directory with no Collection directory, and the manifest lists

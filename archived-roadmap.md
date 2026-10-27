@@ -72,8 +72,8 @@ node test instead.
   - was-teaching-server: shipped -- no source change; the counterpart test
     `test/space-archive-fixture.test.ts` passes against the regenerated fixture,
     and the CHANGELOG records that exports now name the corrected URLs
-  - portable-web-spaces-spec: shipped -- the note under the archive
-    endpoints now lists all five anchors the manifest names
+  - portable-web-spaces-spec: shipped -- the note under the archive endpoints
+    now lists all five anchors the manifest names
   - portable-wallet-profile-spec: unresolved -- the normative layout text does
     not quote the manifest's `url` values
   - wallet-backup: unaffected -- it reads the manifest's structure and never
@@ -87,9 +87,9 @@ node test instead.
   - [x] the server's counterpart fixture test passes unchanged
 
 Context: the five WAS constants named the host
-`https://digitalcredentials.github.io/portable-web-spaces-spec/`, which the
-spec is not rendered at, and two of their anchors -- `#collection-data-model`
-and `#policy` -- named no heading in the spec at all. The corrected anchors are
+`https://digitalcredentials.github.io/portable-web-spaces-spec/`, which the spec
+is not rendered at, and two of their anchors -- `#collection-data-model` and
+`#policy` -- named no heading in the spec at all. The corrected anchors are
 `#collection-metadata-data-model` and `#access-control-policies`. The values are
 permanent wire text, so this is a one-time correction of strings that resolved
 nowhere rather than a rewrite following a spec that moved house.

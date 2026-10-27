@@ -2,15 +2,15 @@
  * Packer for a Space export archive: turns an ordered entry tree into the UBC
  * v0.1 tarball (`manifest.yml`, the exporting server's `service.json` where it
  * has one, its `provenance.jsonl` and `did.jsonl` where it signed the export,
- * the `space/<spaceId>/` tree, and the top-level `revocations/` block). Every
- * caller describes the same archive dialect (the file names built by
- * `resourceFileName.ts`, positioned by the path grammar in `archivePath.ts`),
- * whatever storage it reads from, so an archive exported by one imports into
- * another. This module is the single home for the packing itself, and it
- * derives the manifest from the very tree it packs so the two can never drift
- * apart. Before a pack is created, `packSpaceArchive` walks
- * the caller's tree through `archivePath.ts`'s `buildArchivePath`, refusing a
- * shape the reader's `parseArchivePath` could not place.
+ * and the `space/<spaceId>/` tree). Every caller describes the same archive
+ * dialect (the file names built by `resourceFileName.ts`, positioned by the
+ * path grammar in `archivePath.ts`), whatever storage it reads from, so an
+ * archive exported by one imports into another. This module is the single
+ * home for the packing itself, and it derives the manifest from the very tree
+ * it packs so the two can never drift apart. Before a pack is created,
+ * `packSpaceArchive` checks the caller's tree through `archivePath.ts`'s
+ * `buildArchivePath`, refusing a shape the reader's `parseArchivePath` could
+ * not place.
  *
  * Byte acquisition is the only thing that differs per caller, so a file entry
  * either carries its `bytes` inline (small JSON dot-files) or a `read()` thunk
@@ -18,7 +18,7 @@
  * time so an export never holds a whole Space in memory). The pack is handed
  * back before it is filled, and each entry waits for the one before it to be
  * read out, so the consumer's pace is the packer's. Entry ORDER is the
- * caller's: the packer walks the tree exactly as given.
+ * caller's: the packer visits the tree exactly as given.
  */
 import * as tar from 'tar-stream'
 import YAML from 'yaml'
@@ -28,7 +28,6 @@ import {
   ARCHIVE_DID_LOG_FILE,
   ARCHIVE_MANIFEST_FILE,
   ARCHIVE_PROVENANCE_FILE,
-  ARCHIVE_REVOCATIONS_DIR,
   ARCHIVE_SERVICE_FILE,
   ARCHIVE_SPACE_DIR
 } from './archivePath.js'
@@ -56,8 +55,9 @@ export type ArchiveFile = { name: string } & (
 )
 
 /**
- * One directory in an export archive (a Collection dir, or a Resource's
- * `.chunks.<encId>/` subdirectory), holding its entries in archive order.
+ * One directory in an export archive (a Collection dir, a Resource's
+ * `.chunks.<encId>/` subdirectory, or the Space's `.revocations/`
+ * directory), holding its entries in archive order.
  */
 export interface ArchiveDirectory {
   name: string
@@ -80,7 +80,7 @@ function isArchiveDirectory(entry: ArchiveEntry): entry is ArchiveDirectory {
 }
 
 /**
- * Walks an entry tree in archive order: each entry with its path relative to
+ * Yields an entry tree in archive order: each entry with its path relative to
  * the tree's root, a directory ahead of its children. The one definition of
  * tree order, which the manifest's names and the pack's entries both follow.
  * @param entries {ArchiveEntry[]}
@@ -255,9 +255,9 @@ function assertBodyFitsPosition({
  * Collection directory named by the reserved Collection id, a Collection
  * packed both as a tombstone and as a Collection directory (a tombstone has
  * no member entries), and a file whose inline bytes disagree with its
- * position (see {@link assertBodyFitsPosition}). Walks the tree in the same order
- * `packDirectory` packs it, before a pack ever exists, so a caller sees the
- * refusal without any tar-stream side effect.
+ * position (see {@link assertBodyFitsPosition}). Visits the tree in the same
+ * order `packDirectory` packs it, before a pack ever exists, so a caller sees
+ * the refusal without any tar-stream side effect.
  * @param options {object}
  * @param options.rootPath {string}   the directory holding `entries`, as an
  *   archive path (no trailing slash)
@@ -331,7 +331,6 @@ function serializeServiceDescription(service: object): string {
  * @param options.spaceDirPath {string}   the `space/<spaceId>` directory's
  *   archive path
  * @param options.entries {ArchiveEntry[]}
- * @param options.revocations {ArchiveFile[]}
  * @returns {Promise<void>}
  */
 async function fillSpaceArchive({
@@ -339,15 +338,13 @@ async function fillSpaceArchive({
   manifestText,
   rootFiles,
   spaceDirPath,
-  entries,
-  revocations
+  entries
 }: {
   pack: tar.Pack
   manifestText: string
   rootFiles: { name: string; body: Uint8Array | string | undefined }[]
   spaceDirPath: string
   entries: ArchiveEntry[]
-  revocations: ArchiveFile[]
 }): Promise<void> {
   // Fixed mtime on every entry so the archive is byte-reproducible (see
   // EXPORT_ENTRY_MTIME).
@@ -372,15 +369,6 @@ async function fillSpaceArchive({
       target: spaceDirPath,
       entries
     })
-
-    if (revocations.length > 0) {
-      await packDirectory({
-        pack,
-        target: ARCHIVE_REVOCATIONS_DIR,
-        entries: revocations
-      })
-    }
-
     pack.finalize()
   } catch (err) {
     pack.destroy(err as Error)
@@ -392,13 +380,14 @@ async function fillSpaceArchive({
  * `manifest.yml` describing it, the exporting server's Service Description as
  * `service.json` when one is given, the `provenance.jsonl` and `did.jsonl`
  * bodies when given, the `space/` and `space/<spaceId>/` directory
- * entries, every top-level entry (a Space-level file, or a Collection directory
- * with its files and chunk directories), then the Space-scoped zcap revocations
- * under a top-level `revocations/` dir. Refuses the reserved Space id, and
- * refuses -- before any pack is created -- an entry tree containing a shape
- * `parseArchivePath` could not place: a directory nested deeper than a chunk
- * directory, a directory that is not a chunk directory nested inside a
- * Collection directory, a directory inside a chunk directory, or an entry name
+ * entries, and every top-level entry (a Space-level file, a Collection
+ * directory with its files and chunk directories, or the Space's
+ * `.revocations/` directory holding its zcap revocation records as flat
+ * files). Refuses the reserved Space id, and refuses -- before any pack is
+ * created -- an entry tree containing a shape `parseArchivePath` could not
+ * place: a directory nested deeper than a chunk directory, a directory that
+ * is not a chunk directory nested inside a Collection directory, a directory
+ * inside a chunk directory or the revocations directory, or an entry name
  * that is empty or embeds a `/`.
  *
  * A Collection tombstone is a top-level file named
@@ -417,8 +406,6 @@ async function fillSpaceArchive({
  * @param options.spaceId {string}
  * @param options.entries {ArchiveEntry[]}   the Space's top-level entries, in
  *   the order they are packed (the manifest mirrors it)
- * @param [options.revocations] {ArchiveFile[]}   the Space's zcap revocation
- *   records; no `revocations/` block is emitted when there are none
  * @param [options.service] {object}   the exporting server's Service
  *   Description, written verbatim as the `service.json` entry immediately
  *   after the manifest; no such entry is written when it is absent
@@ -438,14 +425,12 @@ async function fillSpaceArchive({
 export async function packSpaceArchive({
   spaceId,
   entries,
-  revocations = [],
   service,
   provenance,
   didLog
 }: {
   spaceId: string
   entries: ArchiveEntry[]
-  revocations?: ArchiveFile[]
   service?: object
   provenance?: Uint8Array | string
   didLog?: Uint8Array | string
@@ -457,12 +442,6 @@ export async function packSpaceArchive({
     isDirectory: true
   })
   assertEntriesPlaceable({ rootPath: spaceDirPath, entries })
-  if (revocations.length > 0) {
-    assertEntriesPlaceable({
-      rootPath: ARCHIVE_REVOCATIONS_DIR,
-      entries: revocations
-    })
-  }
   // Serialized here, and only here, so two exports of one Service
   // Description are the same bytes.
   const serviceText =
@@ -474,7 +453,6 @@ export async function packSpaceArchive({
         ? { name: entry.name, files: flattenEntryNames(entry.files) }
         : { name: entry.name }
     ),
-    revocationFiles: revocations.map(file => file.name),
     provenance: provenance !== undefined,
     didLog: didLog !== undefined
   })
@@ -493,8 +471,7 @@ export async function packSpaceArchive({
       { name: ARCHIVE_DID_LOG_FILE, body: didLog }
     ],
     spaceDirPath,
-    entries,
-    revocations
+    entries
   })
   // tar-stream's pack is a streamx stream, which is async-iterable and needs
   // no Node `stream` import; a Node caller that wants a `Readable` wraps it.

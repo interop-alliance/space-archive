@@ -1,5 +1,23 @@
 # @interop/space-archive Changelog
 
+## 0.9.0 - TBD
+
+### Changed
+
+- The lazy, one-shot iteration `tarEntries` opens and `readSpaceArchive` hands
+  back as `entries` is the entry cursor, in the docs, the code comments and the
+  error an entry's late `bytes()` call rejects with (its message now reads "The
+  entry cursor has moved past entry ..."). Before, the docs called it the tar
+  walk.
+- A Space's zcap revocation records are packed inside the Space tree, as
+  `space/<spaceId>/.revocations/<file>`, in place of the top-level
+  `revocations/` directory. `ARCHIVE_REVOCATIONS_DIR` names the subdirectory,
+  the `revocations` area of `ArchivePath` carries the `spaceId`, and the
+  top-level root parses as `other`. `packSpaceArchive` takes the directory as
+  one of `entries`, so its `revocations` option and the manifest's
+  `revocationFiles` option are gone; the manifest lists the directory inside the
+  Space's `contents`. The fixture archives are repacked.
+
 ## 0.8.3 - 2026-10-25
 
 ### Changed

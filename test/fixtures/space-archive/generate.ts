@@ -16,8 +16,8 @@
  * checkout it has to find on disk. The tree is fixed and deliberately boring:
  * one Space Metadata
  * dot-file, one Collection holding its Metadata, its governing history log, a
- * Resource representation and that Resource's metadata sidecar, and one
- * Space-scoped revocation record.
+ * Resource representation and that Resource's metadata sidecar, and the
+ * Space's `.revocations/` directory holding one revocation record.
  *
  * Each record has the layout the PWS reference server exports. The two
  * Metadata files, the governing history log record and the Resource sidecar
@@ -137,6 +137,7 @@ function jsonFile({
  */
 function fixtureEntries(): ArchiveEntry[] {
   return [
+    fixtureRevocationsDir(),
     jsonFile({
       name: `.space.${FIXTURE_SPACE_ID}.json`,
       document: {
@@ -209,16 +210,21 @@ function fixtureEntries(): ArchiveEntry[] {
 }
 
 /**
- * The fixture's Space-scoped revocation records, in pack order.
- * @returns {ArchiveFile[]}
+ * The fixture Space's `.revocations/` directory, holding its Space-scoped
+ * revocation records in pack order. It sorts ahead of the Space Metadata
+ * dot-file, as the server's directory listing orders the two.
+ * @returns {ArchiveEntry}
  */
-function fixtureRevocations(): ArchiveFile[] {
-  return [
-    jsonFile({
-      name: 'urn%3Auuid%3Afixture-revocation.json',
-      document: { id: 'urn:uuid:fixture-revocation' }
-    })
-  ]
+function fixtureRevocationsDir(): ArchiveEntry {
+  return {
+    name: '.revocations',
+    files: [
+      jsonFile({
+        name: 'urn%3Auuid%3Afixture-revocation.json',
+        document: { id: 'urn:uuid:fixture-revocation' }
+      })
+    ]
+  }
 }
 
 /**
@@ -228,8 +234,7 @@ function fixtureRevocations(): ArchiveFile[] {
 export async function packFixtureArchive(): Promise<Uint8Array> {
   const pack = await packSpaceArchive({
     spaceId: FIXTURE_SPACE_ID,
-    entries: fixtureEntries(),
-    revocations: fixtureRevocations()
+    entries: fixtureEntries()
   })
   return collectBytes(pack)
 }
@@ -267,7 +272,6 @@ export async function packProvenanceFixtureArchive(): Promise<Uint8Array> {
   const pack = await packSpaceArchive({
     spaceId: FIXTURE_SPACE_ID,
     entries: fixtureEntries(),
-    revocations: fixtureRevocations(),
     ...provenanceFixtureInputs()
   })
   return collectBytes(pack)
