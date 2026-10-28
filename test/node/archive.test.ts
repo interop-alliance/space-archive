@@ -16,8 +16,10 @@ import {
   parseArchiveManifest,
   parseArchivePath,
   parseResourceFileName,
+  parseSpaceMetadataFileName,
   readSpaceArchive,
   RESOURCE_URL,
+  SPACE_POLICY_FILE_NAME,
   spaceMetadataFileName,
   tarEntries
 } from '../../src/index.js'
@@ -222,10 +224,10 @@ describe('resource file names', () => {
 
   it("builds the fixture's literal file names", () => {
     expect(spaceMetadataFileName(FIXTURE_SPACE_ID)).toBe(
-      `.space.${FIXTURE_SPACE_ID}.json`
+      `.space.meta.${FIXTURE_SPACE_ID}.json`
     )
     expect(collectionMetadataFileName(FIXTURE_COLLECTION_ID)).toBe(
-      `.collection.${FIXTURE_COLLECTION_ID}.json`
+      `.collection.meta.${FIXTURE_COLLECTION_ID}.json`
     )
     expect(collectionLogFileName(FIXTURE_COLLECTION_ID)).toBe(
       `.collectionlog.${FIXTURE_COLLECTION_ID}.json`
@@ -242,7 +244,7 @@ describe('resource file names', () => {
   })
 
   it('classifies every kind of Collection-dir file name', () => {
-    expect(classifyCollectionFile('.collection.notes.json')).toEqual({
+    expect(classifyCollectionFile('.collection.meta.notes.json')).toEqual({
       kind: 'collectionMetadata',
       collectionId: 'notes'
     })
@@ -304,9 +306,9 @@ describe('packSpaceArchive and readSpaceArchive', () => {
       `space/${FIXTURE_SPACE_ID}/`,
       `space/${FIXTURE_SPACE_ID}/.revocations/`,
       `space/${FIXTURE_SPACE_ID}/.revocations/urn%3Auuid%3Afixture-revocation.json`,
-      `space/${FIXTURE_SPACE_ID}/.space.${FIXTURE_SPACE_ID}.json`,
+      `space/${FIXTURE_SPACE_ID}/.space.meta.${FIXTURE_SPACE_ID}.json`,
       `space/${FIXTURE_SPACE_ID}/${FIXTURE_COLLECTION_ID}/`,
-      `space/${FIXTURE_SPACE_ID}/${FIXTURE_COLLECTION_ID}/.collection.${FIXTURE_COLLECTION_ID}.json`,
+      `space/${FIXTURE_SPACE_ID}/${FIXTURE_COLLECTION_ID}/.collection.meta.${FIXTURE_COLLECTION_ID}.json`,
       `space/${FIXTURE_SPACE_ID}/${FIXTURE_COLLECTION_ID}/.collectionlog.${FIXTURE_COLLECTION_ID}.json`,
       `space/${FIXTURE_SPACE_ID}/${FIXTURE_COLLECTION_ID}/.meta.${FIXTURE_RESOURCE_ID}.json`,
       `space/${FIXTURE_SPACE_ID}/${FIXTURE_COLLECTION_ID}/r.note%2E1.application%2Fjson.json`
@@ -398,10 +400,10 @@ describe('packSpaceArchive and readSpaceArchive', () => {
       collectionId: 'c1',
       fileName: ''
     })
-    expect(parseArchivePath('space/s1/.space.s1.json')).toEqual({
+    expect(parseArchivePath('space/s1/.space.meta.s1.json')).toEqual({
       area: 'space',
       spaceId: 's1',
-      fileName: '.space.s1.json'
+      fileName: '.space.meta.s1.json'
     })
   })
 
@@ -439,7 +441,9 @@ describe('packSpaceArchive and readSpaceArchive', () => {
     const bytes = await collectBytes(
       await packSpaceArchive({
         spaceId: 's1',
-        entries: [{ name: '.space.s1.json', bytes: new Uint8Array(400_000) }]
+        entries: [
+          { name: '.space.meta.s1.json', bytes: new Uint8Array(400_000) }
+        ]
       })
     )
     for (const release of ['close', 'return'] as const) {
@@ -620,11 +624,23 @@ describe('packSpaceArchive and readSpaceArchive', () => {
     ])
   })
 
-  it('refuses the reserved Space id', async () => {
-    expect(() => spaceMetadataFileName('policy')).toThrow(/reserved/)
-    await expect(
-      packSpaceArchive({ spaceId: 'policy', entries: [] })
-    ).rejects.toThrow(/reserved/)
+  it('names and packs a Space whose id is "policy"', async () => {
+    const metadataName = spaceMetadataFileName('policy')
+    expect(metadataName).toBe('.space.meta.policy.json')
+    expect(parseSpaceMetadataFileName(metadataName)).toBe('policy')
+    expect(parseSpaceMetadataFileName(SPACE_POLICY_FILE_NAME)).toBeUndefined()
+    const pack = await packSpaceArchive({
+      spaceId: 'policy',
+      entries: [
+        { name: metadataName, bytes: new Uint8Array() },
+        { name: SPACE_POLICY_FILE_NAME, bytes: new Uint8Array() }
+      ]
+    })
+    const names = await namesOf(
+      (await readSpaceArchive(await collectBytes(pack))).entries
+    )
+    expect(names).toContain(`space/policy/${metadataName}`)
+    expect(names).toContain(`space/policy/${SPACE_POLICY_FILE_NAME}`)
   })
 
   it('fills the pack at the pace it is read', async () => {
@@ -665,7 +681,7 @@ describe('packSpaceArchive and readSpaceArchive', () => {
     const bytes = await collectBytes(
       await packSpaceArchive({
         spaceId: 's1',
-        entries: [{ name: '.space.s1.json', bytes: new Uint8Array() }],
+        entries: [{ name: '.space.meta.s1.json', bytes: new Uint8Array() }],
         service
       })
     )
@@ -687,7 +703,7 @@ describe('packSpaceArchive and readSpaceArchive', () => {
     expect(entryNames).toEqual([
       'space/',
       'space/s1/',
-      'space/s1/.space.s1.json'
+      'space/s1/.space.meta.s1.json'
     ])
   })
 
@@ -707,7 +723,9 @@ describe('packSpaceArchive and readSpaceArchive', () => {
     expect(
       JSON.parse(
         new TextDecoder().decode(
-          first.get(`space/${FIXTURE_SPACE_ID}/.space.${FIXTURE_SPACE_ID}.json`)
+          first.get(
+            `space/${FIXTURE_SPACE_ID}/.space.meta.${FIXTURE_SPACE_ID}.json`
+          )
         )
       ).id
     ).toBe(FIXTURE_SPACE_ID)
@@ -774,7 +792,7 @@ describe('packSpaceArchive and readSpaceArchive', () => {
   it('refuses a Service Description JSON cannot represent, before packing', async () => {
     const circular: Record<string, unknown> = {}
     circular.self = circular
-    const entries = [{ name: '.space.s1.json', bytes: new Uint8Array() }]
+    const entries = [{ name: '.space.meta.s1.json', bytes: new Uint8Array() }]
     await expect(
       packSpaceArchive({ spaceId: 's1', entries, service: circular })
     ).rejects.toThrow(/cannot be serialized as "service.json"/)
@@ -789,7 +807,7 @@ describe('packSpaceArchive and readSpaceArchive', () => {
     const bytes = await collectBytes(
       await packSpaceArchive({
         spaceId: 's1',
-        entries: [{ name: '.space.s1.json', bytes: new Uint8Array() }],
+        entries: [{ name: '.space.meta.s1.json', bytes: new Uint8Array() }],
         service: { url: 'https://was.example/service' },
         provenance,
         didLog
@@ -823,7 +841,7 @@ describe('packSpaceArchive and readSpaceArchive', () => {
     expect(entryNames).toEqual([
       'space/',
       'space/s1/',
-      'space/s1/.space.s1.json'
+      'space/s1/.space.meta.s1.json'
     ])
   })
 

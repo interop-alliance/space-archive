@@ -97,7 +97,7 @@ function spaceManifestEntry(fileName: string): unknown {
  * Builds the UBC v0.1 manifest object for a Space export. The caller supplies
  * the archive's top-level entries in the order they will be packed (Space-level
  * files interleaved with Collection directories); the manifest mirrors that
- * order. A Collection tombstone (a `.collection.<collectionId>.json` file
+ * order. A Collection tombstone (a `.collection.meta.<collectionId>.json` file
  * among the Space-level files) is listed with `deleted: true`; a live
  * Collection's entries carry no `deleted` member. The Space's revocations
  * directory is listed by its file names, with no documenting `url`, since no

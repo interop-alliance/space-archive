@@ -40,7 +40,6 @@ import {
 } from './metadataFile.js'
 import {
   assertCollectionIdNotReserved,
-  assertSpaceIdNotReserved,
   classifyCollectionFile
 } from './resourceFileName.js'
 
@@ -204,7 +203,7 @@ async function packDirectory({
 
 /**
  * Refuses a Collection Metadata file whose body disagrees with its position.
- * A Collection tombstone (a `.collection.<collectionId>.json` file in the
+ * A Collection tombstone (a `.collection.meta.<collectionId>.json` file in the
  * Space directory) must read as one through `collectionTombstoneFromFile`:
  * `deleted: true`, a whole write stamp, `_generation`, and no other member. A
  * Collection Metadata file inside its Collection directory must not carry
@@ -252,7 +251,7 @@ function assertBodyFitsPosition({
  * place: an entry name that is empty or embeds a `/`, a directory nested
  * deeper than a chunk directory, or a directory that is not a chunk directory
  * where the layout allows no other kind of directory. Also refuses a
- * Collection directory named by the reserved Collection id, a Collection
+ * Collection directory named by a reserved Collection id, a Collection
  * packed both as a tombstone and as a Collection directory (a tombstone has
  * no member entries), and a file whose inline bytes disagree with its
  * position (see {@link assertBodyFitsPosition}). Visits the tree in the same
@@ -383,22 +382,21 @@ async function fillSpaceArchive({
  * entries, and every top-level entry (a Space-level file, a Collection
  * directory with its files and chunk directories, or the Space's
  * `.revocations/` directory holding its zcap revocation records as flat
- * files). Refuses the reserved Space id, and refuses -- before any pack is
- * created -- an entry tree containing a shape `parseArchivePath` could not
- * place: a directory nested deeper than a chunk directory, a directory that
- * is not a chunk directory nested inside a Collection directory, a directory
- * inside a chunk directory or the revocations directory, or an entry name
- * that is empty or embeds a `/`.
+ * files). Refuses -- before any pack is created -- an entry tree containing
+ * a shape `parseArchivePath` could not place: a directory nested deeper than
+ * a chunk directory, a directory that is not a chunk directory nested inside
+ * a Collection directory, a directory inside a chunk directory or the
+ * revocations directory, or an entry name that is empty or embeds a `/`.
  *
  * A Collection tombstone is a top-level file named
- * `.collection.<collectionId>.json` whose body carries `deleted: true`, a
+ * `.collection.meta.<collectionId>.json` whose body carries `deleted: true`, a
  * whole write stamp, `_generation`, and no other member, with no Collection
  * directory of that id. The manifest lists it with `deleted: true`, derived
  * from its position. The packer refuses a tombstone beside a Collection
  * directory of the same id, a body in the tombstone position that is not a
  * tombstone, and a `deleted: true` body inside a Collection directory. It
- * also refuses a Collection directory named `policy`
- * (`RESERVED_COLLECTION_ID`).
+ * also refuses a Collection directory whose name is a reserved Collection id
+ * (storage-core's `RESERVED_COLLECTION_IDS`).
  * Inline bytes are checked before any pack is created; a body read through a
  * `read()` thunk is checked when it is read, and a refusal then fails the
  * pack's reader.
@@ -435,7 +433,6 @@ export async function packSpaceArchive({
   provenance?: Uint8Array | string
   didLog?: Uint8Array | string
 }): Promise<tar.Pack & AsyncIterable<Uint8Array>> {
-  assertSpaceIdNotReserved(spaceId)
   const spaceDirPath = buildArchivePath({
     parentPath: ARCHIVE_SPACE_DIR,
     name: spaceId,

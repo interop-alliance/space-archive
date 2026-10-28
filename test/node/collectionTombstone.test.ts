@@ -12,8 +12,7 @@ import {
   holdsCollectionTombstone,
   packSpaceArchive,
   parseArchivePath,
-  readSpaceArchive,
-  RESERVED_COLLECTION_ID
+  readSpaceArchive
 } from '../../src/index.js'
 import type { ArchiveEntry, TarEntry } from '../../src/index.js'
 import { packRawTar } from './helpers.js'
@@ -48,13 +47,13 @@ function jsonBytes(document: object): Uint8Array {
  */
 function treeWithTombstone(): ArchiveEntry[] {
   return [
-    { name: '.space.s1.json', bytes: jsonBytes({ id: 's1', ...STAMP }) },
-    { name: '.collection.old.json', bytes: jsonBytes(TOMBSTONE) },
+    { name: '.space.meta.s1.json', bytes: jsonBytes({ id: 's1', ...STAMP }) },
+    { name: '.collection.meta.old.json', bytes: jsonBytes(TOMBSTONE) },
     {
       name: 'notes',
       files: [
         {
-          name: '.collection.notes.json',
+          name: '.collection.meta.notes.json',
           bytes: jsonBytes({ id: 'notes', ...STAMP, _generation: 'zGen' })
         },
         { name: 'r.n1.application%2Fjson.json', bytes: jsonBytes({ a: 1 }) }
@@ -92,30 +91,31 @@ const MANIFEST = YAML.stringify({
 
 describe('Collection tombstones', () => {
   it('parses a Collection Metadata file in the Space directory as a tombstone', () => {
-    expect(parseArchivePath('space/s1/.collection.old.json')).toEqual({
+    expect(parseArchivePath('space/s1/.collection.meta.old.json')).toEqual({
       area: 'collectionTombstone',
       spaceId: 's1',
       collectionId: 'old',
-      fileName: '.collection.old.json'
+      fileName: '.collection.meta.old.json'
     })
-    expect(parseArchivePath('space/s1/.collection.a.b.json')).toMatchObject({
+    expect(
+      parseArchivePath('space/s1/.collection.meta.a.b.json')
+    ).toMatchObject({
       area: 'collectionTombstone',
       collectionId: 'a.b'
     })
-    // The Collection's own policy name shares the prefix and is not one. No
-    // tombstone can take that name, since the Collection id `policy` is
-    // reserved.
+    // The Collection's own policy file is a plain Space-level file, not a
+    // tombstone.
     expect(parseArchivePath('space/s1/.collection.policy.json')).toEqual({
       area: 'space',
       spaceId: 's1',
       fileName: '.collection.policy.json'
     })
     // The live form, inside the Collection directory, is unchanged.
-    expect(parseArchivePath('space/s1/old/.collection.old.json')).toEqual({
+    expect(parseArchivePath('space/s1/old/.collection.meta.old.json')).toEqual({
       area: 'collection',
       spaceId: 's1',
       collectionId: 'old',
-      fileName: '.collection.old.json'
+      fileName: '.collection.meta.old.json'
     })
   })
 
@@ -123,17 +123,17 @@ describe('Collection tombstones', () => {
     const manifest = buildExportManifest({
       spaceId: 's1',
       entries: [
-        { name: '.space.s1.json' },
-        { name: '.collection.old.json' },
-        { name: 'notes', files: ['.collection.notes.json'] }
+        { name: '.space.meta.s1.json' },
+        { name: '.collection.meta.old.json' },
+        { name: 'notes', files: ['.collection.meta.notes.json'] }
       ]
     }) as { contents: { space: { contents: { s1: { contents: unknown } } } } }
     expect(manifest.contents.space.contents.s1.contents).toEqual([
-      '.space.s1.json',
-      { '.collection.old.json': { url: COLLECTION_URL, deleted: true } },
+      '.space.meta.s1.json',
+      { '.collection.meta.old.json': { url: COLLECTION_URL, deleted: true } },
       {
         notes: {
-          contents: [{ '.collection.notes.json': { url: COLLECTION_URL } }]
+          contents: [{ '.collection.meta.notes.json': { url: COLLECTION_URL } }]
         }
       }
     ])
@@ -149,7 +149,7 @@ describe('Collection tombstones', () => {
       contents: { s1: { contents: unknown[] } }
     }
     expect(space.contents.s1.contents[1]).toEqual({
-      '.collection.old.json': { url: COLLECTION_URL, deleted: true }
+      '.collection.meta.old.json': { url: COLLECTION_URL, deleted: true }
     })
     expect(JSON.stringify(space.contents.s1.contents[2])).not.toContain(
       'deleted'
@@ -159,13 +159,13 @@ describe('Collection tombstones', () => {
     expect([...read.keys()]).toEqual([
       'space/',
       'space/s1/',
-      'space/s1/.space.s1.json',
-      'space/s1/.collection.old.json',
+      'space/s1/.space.meta.s1.json',
+      'space/s1/.collection.meta.old.json',
       'space/s1/notes/',
-      'space/s1/notes/.collection.notes.json',
+      'space/s1/notes/.collection.meta.notes.json',
       'space/s1/notes/r.n1.application%2Fjson.json'
     ])
-    const tombstonePath = 'space/s1/.collection.old.json'
+    const tombstonePath = 'space/s1/.collection.meta.old.json'
     expect(
       collectionTombstoneFromFile({ bytes: read.get(tombstonePath)! })
     ).toEqual({ deleted: true, ...STAMP })
@@ -181,7 +181,7 @@ describe('Collection tombstones', () => {
         spaceId: 's1',
         entries: [
           {
-            name: '.collection.old.json',
+            name: '.collection.meta.old.json',
             read: () => Promise.resolve(jsonBytes(TOMBSTONE))
           }
         ]
@@ -190,7 +190,7 @@ describe('Collection tombstones', () => {
     const read = await readAll((await readSpaceArchive(bytes)).entries)
     expect(
       collectionTombstoneFromFile({
-        bytes: read.get('space/s1/.collection.old.json')!
+        bytes: read.get('space/s1/.collection.meta.old.json')!
       })
     ).toEqual({ deleted: true, ...STAMP })
   })
@@ -200,7 +200,7 @@ describe('Collection tombstones', () => {
       packSpaceArchive({
         spaceId: 's1',
         entries: [
-          { name: '.collection.old.json', bytes: jsonBytes(TOMBSTONE) },
+          { name: '.collection.meta.old.json', bytes: jsonBytes(TOMBSTONE) },
           { name: 'old', files: [] }
         ]
       })
@@ -220,7 +220,9 @@ describe('Collection tombstones', () => {
       await expect(
         packSpaceArchive({
           spaceId: 's1',
-          entries: [{ name: '.collection.old.json', bytes: jsonBytes(body) }]
+          entries: [
+            { name: '.collection.meta.old.json', bytes: jsonBytes(body) }
+          ]
         })
       ).rejects.toThrow(/not a tombstone body/)
       expect(() =>
@@ -233,7 +235,10 @@ describe('Collection tombstones', () => {
       packSpaceArchive({
         spaceId: 's1',
         entries: [
-          { name: '.collection.old.json', bytes: new TextEncoder().encode('{') }
+          {
+            name: '.collection.meta.old.json',
+            bytes: new TextEncoder().encode('{')
+          }
         ]
       })
     ).rejects.toThrow(/not a tombstone body/)
@@ -242,7 +247,7 @@ describe('Collection tombstones', () => {
       spaceId: 's1',
       entries: [
         {
-          name: '.collection.old.json',
+          name: '.collection.meta.old.json',
           read: () => Promise.resolve(jsonBytes({ id: 'old' }))
         }
       ]
@@ -250,16 +255,16 @@ describe('Collection tombstones', () => {
     await expect(collectBytes(pack)).rejects.toThrow(/not a tombstone body/)
   })
 
-  it('refuses the reserved Collection id', async () => {
-    expect(() => collectionMetadataFileName(RESERVED_COLLECTION_ID)).toThrow(
-      /reserved/
-    )
-    await expect(
-      packSpaceArchive({
-        spaceId: 's1',
-        entries: [{ name: 'policy', files: [] }]
-      })
-    ).rejects.toThrow(/reserved/)
+  it('refuses a reserved Collection id', async () => {
+    for (const collectionId of ['policy', 'meta', 'export']) {
+      expect(() => collectionMetadataFileName(collectionId)).toThrow(/reserved/)
+      await expect(
+        packSpaceArchive({
+          spaceId: 's1',
+          entries: [{ name: collectionId, files: [] }]
+        })
+      ).rejects.toThrow(/reserved/)
+    }
   })
 
   it('refuses a tombstone body inside its Collection directory', async () => {
@@ -270,7 +275,7 @@ describe('Collection tombstones', () => {
           {
             name: 'old',
             files: [
-              { name: '.collection.old.json', bytes: jsonBytes(TOMBSTONE) }
+              { name: '.collection.meta.old.json', bytes: jsonBytes(TOMBSTONE) }
             ]
           }
         ]
@@ -283,7 +288,7 @@ describe('Collection tombstones', () => {
           name: 'old',
           files: [
             {
-              name: '.collection.old.json',
+              name: '.collection.meta.old.json',
               read: () => Promise.resolve(jsonBytes(TOMBSTONE))
             }
           ]
@@ -303,7 +308,7 @@ describe('Collection tombstones', () => {
           name: 'notes',
           files: [
             {
-              name: '.collection.notes.json',
+              name: '.collection.meta.notes.json',
               bytes: new TextEncoder().encode('not json')
             }
           ]
@@ -315,7 +320,7 @@ describe('Collection tombstones', () => {
 
   it('refuses an archive holding a Collection as both a tombstone and a directory', async () => {
     const tombstone = {
-      name: 'space/s1/.collection.old.json',
+      name: 'space/s1/.collection.meta.old.json',
       body: JSON.stringify(TOMBSTONE)
     }
     const member = { name: 'space/s1/old/r.x.text%2Fplain.txt', body: 'x' }
@@ -352,12 +357,12 @@ describe('Collection tombstones', () => {
       await packRawTar([
         { name: 'manifest.yml', body: MANIFEST },
         {
-          name: 'space/s1/.collection.old.json',
+          name: 'space/s1/.collection.meta.old.json',
           body: JSON.stringify(TOMBSTONE)
         },
         { name: 'space/s2/old/r.x.text%2Fplain.txt', body: 'x' },
         {
-          name: 'space/s1/.collection.gone.json',
+          name: 'space/s1/.collection.meta.gone.json',
           header: { type: 'symlink', linkname: 'x' }
         },
         { name: 'space/s1/gone/r.x.text%2Fplain.txt', body: 'x' }
@@ -373,7 +378,7 @@ describe('Collection tombstones', () => {
       await packRawTar([
         { name: 'manifest.yml', body: MANIFEST },
         {
-          name: 'space/s1/.collection.old.json',
+          name: 'space/s1/.collection.meta.old.json',
           body: JSON.stringify(TOMBSTONE)
         }
       ])
@@ -384,7 +389,7 @@ describe('Collection tombstones', () => {
     const tombstonePaths = [...read.keys()].filter(
       name => parseArchivePath(name).area === 'collectionTombstone'
     )
-    expect(tombstonePaths).toEqual(['space/s1/.collection.old.json'])
+    expect(tombstonePaths).toEqual(['space/s1/.collection.meta.old.json'])
     expect(
       collectionTombstoneFromFile({ bytes: read.get(tombstonePaths[0]!)! })
     ).toEqual({ deleted: true, ...STAMP })

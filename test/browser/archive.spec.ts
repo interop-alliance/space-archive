@@ -13,7 +13,7 @@ test('packs and reads an archive in the browser', async ({ page }) => {
       spaceId: 'zBrowserSpace',
       entries: [
         {
-          name: '.space.zBrowserSpace.json',
+          name: '.space.meta.zBrowserSpace.json',
           bytes: new TextEncoder().encode('{"id":"zBrowserSpace"}')
         }
       ]
@@ -34,7 +34,8 @@ test('packs and reads an archive in the browser', async ({ page }) => {
   expect(result.files).toEqual({
     'space/': '',
     'space/zBrowserSpace/': '',
-    'space/zBrowserSpace/.space.zBrowserSpace.json': '{"id":"zBrowserSpace"}'
+    'space/zBrowserSpace/.space.meta.zBrowserSpace.json':
+      '{"id":"zBrowserSpace"}'
   })
 })
 
@@ -65,9 +66,9 @@ test('reads the checked-in fixture archive from a fetched stream', async ({
     'space/zFixtureSpace/',
     'space/zFixtureSpace/.revocations/',
     'space/zFixtureSpace/.revocations/urn%3Auuid%3Afixture-revocation.json',
-    'space/zFixtureSpace/.space.zFixtureSpace.json',
+    'space/zFixtureSpace/.space.meta.zFixtureSpace.json',
     'space/zFixtureSpace/notes/',
-    'space/zFixtureSpace/notes/.collection.notes.json',
+    'space/zFixtureSpace/notes/.collection.meta.notes.json',
     'space/zFixtureSpace/notes/.collectionlog.notes.json',
     'space/zFixtureSpace/notes/.meta.note.1.json',
     'space/zFixtureSpace/notes/r.note%2E1.application%2Fjson.json'

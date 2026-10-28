@@ -60,7 +60,7 @@ export const ARCHIVE_REVOCATIONS_DIR = '.revocations'
  * `space/` directory entry, the one directory the layout holds above a Space
  * id; a bare file named `space` (no trailing slash) matches nothing in the
  * layout and parses as `other`. `collectionTombstone` is a Collection
- * Metadata file (`.collection.<collectionId>.json`) directly in the Space
+ * Metadata file (`.collection.meta.<collectionId>.json`) directly in the Space
  * directory: a live Collection keeps that file in its own directory, so the
  * position alone marks the Collection deleted.
  */

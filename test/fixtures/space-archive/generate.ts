@@ -54,7 +54,12 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { collectBytes, packSpaceArchive } from '../../../src/index.js'
+import {
+  collectBytes,
+  collectionMetadataFileName,
+  packSpaceArchive,
+  spaceMetadataFileName
+} from '../../../src/index.js'
 import type { ArchiveEntry, ArchiveFile } from '../../../src/index.js'
 
 /**
@@ -139,7 +144,7 @@ function fixtureEntries(): ArchiveEntry[] {
   return [
     fixtureRevocationsDir(),
     jsonFile({
-      name: `.space.${FIXTURE_SPACE_ID}.json`,
+      name: spaceMetadataFileName(FIXTURE_SPACE_ID),
       document: {
         id: FIXTURE_SPACE_ID,
         controller: 'did:key:z6MkfixtureController',
@@ -164,7 +169,7 @@ function fixtureEntries(): ArchiveEntry[] {
       name: FIXTURE_COLLECTION_ID,
       files: [
         jsonFile({
-          name: `.collection.${FIXTURE_COLLECTION_ID}.json`,
+          name: collectionMetadataFileName(FIXTURE_COLLECTION_ID),
           document: {
             id: FIXTURE_COLLECTION_ID,
             createdAt: '1970-01-01T00:00:00.000Z',

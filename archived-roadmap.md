@@ -200,3 +200,111 @@ byte, and its counterpart case is marked as expected to fail until this lands.
 
 The Collection tombstone form is a separate dialect change, tracked by the
 server's WAS-174.
+
+### SAR-1: Reserve the Space id `policy` across the contract's parties
+
+- status: done 2026-10-27 (superseded by SAR-8)
+- priority: medium
+- labels: contract, file-naming
+- touches:
+  - space-archive (this repo): shipped -- writer-side refusal in
+    `spaceMetadataFileName` and `packSpaceArchive` (via
+    `assertSpaceIdNotReserved`), the exported `RESERVED_SPACE_ID`, and this
+    repo's ARCHITECTURE.md (Glossary entry, invariant notes)
+  - portable-wallet-profile-spec: unresolved -- the normative layout text does
+    not state the reservation
+  - was-teaching-server: unresolved -- Space creation does not refuse the id
+    `policy`; its ARCHITECTURE.md / AGENTS.md
+  - wallet-backup: unresolved -- likely unaffected (it only reads Space archives
+    back), left open for confirmation
+- acceptance:
+  - [x] space-archive refuses the reserved Space id `policy` on the writing side
+        and exports `RESERVED_SPACE_ID`
+  - [ ] portable-wallet-profile-spec's normative layout text states that the
+        Space id `policy` is reserved
+  - [ ] was-teaching-server refuses creating a Space with the id `policy`, and
+        its ARCHITECTURE.md / AGENTS.md say so
+  - [ ] wallet-backup's impact is confirmed and its `touches:` entry above is
+        resolved (shipped or waived as unaffected)
+
+Context: the per-Space archive's file-name dialect names a Space's Metadata file
+`.space.<spaceId>.json`. When the Space id is `policy`, that name collides with
+the Space's own policy file, `.space.policy.json`. This package now refuses the
+id `policy` on the writing side (`spaceMetadataFileName`, `packSpaceArchive`)
+and exports `RESERVED_SPACE_ID` so a caller can check ahead of time. The
+reservation is not yet consistent across the parties that share this contract.
+The PWS reference server already reserves `policy` for Collection and Resource
+ids but not for Space ids, so a Space named `policy` can still be created there
+today, even though it can no longer be exported as a per-Space archive. The
+portable-wallet-profile-spec's normative layout text does not mention the
+reservation at all. `wallet-backup` only reads Space archives back, so it is
+likely unaffected, but that is unconfirmed.
+
+Closed 2026-10-27 as superseded by SAR-8, which removed the collision by
+renaming the Metadata file to `.space.meta.<spaceId>.json`; the reservation this
+item shipped was taken back out, and its open boxes are unmet by design.
+
+### SAR-8: Rename the Space and Collection Metadata files to `.<level>.meta.<id>.json`
+
+- status: done 2026-10-27
+- priority: medium
+- labels: contract, file-naming, archive-layout, writer, reader, metadata-file
+- touches:
+  - space-archive (this repo): shipped 2026-10-27, unpublished (0.10.0) --
+    `SPACE_FILE_PREFIX` / `COLLECTION_FILE_PREFIX` and the builders and parsers
+    in `src/archive/resourceFileName.ts`, removal of `RESERVED_SPACE_ID` /
+    `assertSpaceIdNotReserved` and of the policy-name exclusion in both Metadata
+    parsers, the regenerated `fixtures/space-archive.tar` and
+    `fixtures/space-archive-provenance.tar`, ARCHITECTURE.md (archive layout
+    map, Glossary: Reserved Space id removed, Reserved Collection id reworded),
+    README, the breaking CHANGELOG entry
+  - was-teaching-server: shipped 2026-10-27 as its WAS-233 (0.43.0 TBD) -- the
+    filesystem store's on-disk names follow the package's builders, so it gained
+    layout step 9 (refuses a store holding a Metadata file under an old name);
+    the import, export provenance, Space projection and tombstone modules, the
+    counterpart fixture test, ARCHITECTURE.md and its `docs/` layout pages name
+    the new files; consumes this package through a temporary `link:` until
+    0.10.0 is published
+  - wallet-backup: shipped 2026-10-27 (0.8.0 TBD) -- its source does not build
+    or parse either file name directly (it goes through `readSpaceArchive` and
+    the classifier helpers); `test/browser/bundle.spec.ts` now packs and asserts
+    `.space.meta.zBrowserSpace.json`, the dependency range is `^0.10.0`, and the
+    CHANGELOG names the breaking bump; its ARCHITECTURE.md / AGENTS.md never
+    named the old files
+  - unaffected: portable-wallet-profile-spec (the per-Space archive's internal
+    layout section is not yet carried in the current profile version, so there
+    is no normative file-name text to change; waived 2026-10-27)
+- acceptance:
+  - [x] The Space Metadata file is written and read as
+        `.space.meta.<spaceId>.json`, and the Collection Metadata file (live in
+        the Collection directory, tombstone in the Space directory) as
+        `.collection.meta.<collectionId>.json`
+  - [x] `RESERVED_SPACE_ID` and `assertSpaceIdNotReserved` are removed; a Space
+        id of `policy` packs and reads back
+  - [x] `RESERVED_COLLECTION_ID` stays, justified by the PWS reserved path
+        segment registry alone, and its Glossary entry no longer cites a
+        file-name collision
+  - [x] Both checked-in fixtures are regenerated and the server's counterpart
+        test passes against them (2026-10-27)
+  - [x] Every `touches:` entry above is resolved (2026-10-27)
+  - [x] SAR-1 is closed as superseded by this item (2026-10-27)
+
+Context: the Space Metadata file is named `.space.<spaceId>.json` and the
+Space's own policy file `.space.policy.json`, so a Space id of `policy` would
+give both objects one file name. SAR-1 handles that by reserving the id, which
+only this package enforces; the server still creates such a Space and the spec
+has no text to back the reservation. Renaming the Metadata file to
+`.space.meta.<spaceId>.json` removes the collision instead, so no id needs
+reserving at the Space level and the reader no longer has to exclude the policy
+name before parsing. The `.meta.` segment echoes the existing Resource sidecar
+prefix (`.meta.<resourceId>.json`). The Collection Metadata file has the same
+collision with `.collection.policy.json`, but the Collection id `policy` stays
+reserved regardless because the PWS spec's reserved path segment registry
+reserves it; it is renamed to `.collection.meta.<collectionId>.json` in the same
+change so both levels follow one pattern, and its Glossary entry then rests on
+the registry alone. The Space id in the file name is redundant with the
+`space/<spaceId>/` directory, but the server's importer reads the source Space
+id from the file name and cross-checks it against the directory, so the
+id-bearing form keeps that check intact. This is a change to the layout's shape,
+so it is a full pass over the "Parties to this contract" table in AGENTS.md and
+a breaking release of this package.

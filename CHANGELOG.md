@@ -1,5 +1,27 @@
 # @interop/space-archive Changelog
 
+## 0.10.0 - TBD
+
+### Changed
+
+- **Breaking:** the Space Metadata file is `.space.meta.<spaceId>.json` and the
+  Collection Metadata file (live in its Collection directory, or a tombstone in
+  the Space directory) is `.collection.meta.<collectionId>.json`, in place of
+  `.space.<spaceId>.json` and `.collection.<collectionId>.json`. The `meta`
+  segment keeps each name apart from the Space's or Collection's own policy file
+  for every id. `SPACE_FILE_PREFIX` and `COLLECTION_FILE_PREFIX` carry the new
+  prefixes, and the two Metadata parsers no longer exclude the policy file names
+  before slicing. The fixture archives are repacked (SAR-8).
+- The Space id `policy` is no longer reserved: `RESERVED_SPACE_ID` and
+  `assertSpaceIdNotReserved` are removed, and `spaceMetadataFileName` and
+  `packSpaceArchive` accept the id.
+- **Breaking:** `assertCollectionIdNotReserved` (so `collectionMetadataFileName`
+  and `packSpaceArchive`) refuses every id in `@interop/storage-core`'s
+  `RESERVED_COLLECTION_IDS`, the PWS reserved path segment registry, in place of
+  `policy` alone. `RESERVED_COLLECTION_ID` is removed.
+- `@interop/storage-core` `^0.41.0` is the minimum, for the `.revocations` entry
+  in `RESERVED_COLLECTION_IDS`.
+
 ## 0.9.0 - 2026-10-27
 
 ### Changed

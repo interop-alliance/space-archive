@@ -3,8 +3,8 @@
  */
 /**
  * Reads a Metadata file's body back into the Metadata object it stores. A
- * Space Metadata file (`.space.<spaceId>.json`) and a Collection Metadata file
- * (`.collection.<collectionId>.json`) each hold the stored object whole, with
+ * Space Metadata file (`.space.meta.<spaceId>.json`) and a Collection Metadata file
+ * (`.collection.meta.<collectionId>.json`) each hold the stored object whole, with
  * its generation embedded under the reserved `_generation` member. That
  * embedding is the storage convention both reference-server backends write, so
  * the generation survives an export and import round trip. The write stamp
@@ -104,7 +104,7 @@ export function holdsCollectionTombstone({
 }
 
 /**
- * Reads a Collection Metadata file (`.collection.<collectionId>.json`) into
+ * Reads a Collection Metadata file (`.collection.meta.<collectionId>.json`) into
  * the Collection Metadata object it stores, without the embedded
  * `_generation`. A governed Collection's `encryption` descriptor is not in
  * this file; it derives from the Collection's governing history log
@@ -136,7 +136,7 @@ export function collectionMetadataFromFile({
 }
 
 /**
- * Reads a Collection tombstone's file (`.collection.<collectionId>.json` in
+ * Reads a Collection tombstone's file (`.collection.meta.<collectionId>.json` in
  * the Space directory) into the tombstone it stores, without the embedded
  * `_generation`: `deleted: true` and the write stamp of the deleting write.
  * The body holds those members and no other. A tombstone without a whole
@@ -180,7 +180,7 @@ export function collectionTombstoneFromFile({
 }
 
 /**
- * Reads a Space Metadata file (`.space.<spaceId>.json`) into the Space
+ * Reads a Space Metadata file (`.space.meta.<spaceId>.json`) into the Space
  * Metadata object it stores, without the embedded `_generation`.
  *
  * @param options {object}

@@ -11,6 +11,7 @@
  * low-level (no imports from the rest of `src/archive/`) so every consumer
  * can depend on it without an import cycle.
  */
+import { RESERVED_COLLECTION_IDS } from '@interop/storage-core'
 import * as mime from 'mime-types'
 
 /**
@@ -187,15 +188,19 @@ export function parseChunkDirName(dirName: string): string | undefined {
 export const JSON_FILE_SUFFIX = '.json'
 
 /**
- * Prefix of a Space description dot-file (`.space.<spaceId>.json`).
+ * Prefix of a Space Metadata dot-file (`.space.meta.<spaceId>.json`). The
+ * `meta` segment keeps the name apart from the Space's own policy file
+ * ({@link SPACE_POLICY_FILE_NAME}) for every Space id, `policy` included.
  */
-export const SPACE_FILE_PREFIX = '.space.'
+export const SPACE_FILE_PREFIX = '.space.meta.'
 
 /**
- * Prefix of a Collection description dot-file
- * (`.collection.<collectionId>.json`).
+ * Prefix of a Collection Metadata dot-file
+ * (`.collection.meta.<collectionId>.json`), live in the Collection dir or a
+ * tombstone in the Space dir. The `meta` segment keeps the name apart from the
+ * Collection's own policy file ({@link COLLECTION_POLICY_FILE_NAME}).
  */
-export const COLLECTION_FILE_PREFIX = '.collection.'
+export const COLLECTION_FILE_PREFIX = '.collection.meta.'
 
 /**
  * Suffix shared by the three access-control policy dot-files. Each is named
@@ -219,8 +224,7 @@ export const SPACE_POLICY_FILE_NAME = '.space.policy.json'
 
 /**
  * File name of a Collection's own access-control policy, in the Collection
- * dir. Starts with the Collection description's `.collection.` prefix, so any
- * classifier that matches that prefix must test for this exact name first.
+ * dir.
  */
 export const COLLECTION_POLICY_FILE_NAME = '.collection.policy.json'
 
@@ -248,67 +252,35 @@ export const META_FILE_PREFIX = '.meta.'
 export const COLLECTION_LOG_FILE_PREFIX = '.collectionlog.'
 
 /**
- * The Space id the layout reserves: its Space Metadata file name would be
- * `.space.policy.json`, which is the Space's policy file
- * ({@link SPACE_POLICY_FILE_NAME}).
- */
-export const RESERVED_SPACE_ID = 'policy'
-
-/**
- * Refuses the reserved Space id ({@link RESERVED_SPACE_ID}) on the writing
- * side: the file-name builder and the packer both name a Space through here.
- * @param spaceId {string}
- * @returns {void}
- */
-export function assertSpaceIdNotReserved(spaceId: string): void {
-  if (spaceId === RESERVED_SPACE_ID) {
-    throw new Error(
-      `The Space id "${RESERVED_SPACE_ID}" is reserved: its Metadata file name would be the Space policy file's.`
-    )
-  }
-}
-
-/**
- * The Collection id the layout reserves: its Collection Metadata file name
- * would be `.collection.policy.json`, which is the Collection's policy file
- * ({@link COLLECTION_POLICY_FILE_NAME}). The PWS reserved path segment
- * registry already keeps the id from a Collection.
- */
-export const RESERVED_COLLECTION_ID = 'policy'
-
-/**
- * Refuses the reserved Collection id ({@link RESERVED_COLLECTION_ID}) on the
- * writing side: the file-name builder and the packer both name a Collection
- * through here.
+ * Refuses a reserved Collection id (storage-core's `RESERVED_COLLECTION_IDS`,
+ * the PWS reserved path segment registry) on the writing side: the file-name
+ * builder and the packer both name a Collection through here.
  * @param collectionId {string}
  * @returns {void}
  */
 export function assertCollectionIdNotReserved(collectionId: string): void {
-  if (collectionId === RESERVED_COLLECTION_ID) {
+  if (RESERVED_COLLECTION_IDS.has(collectionId)) {
     throw new Error(
-      `The Collection id "${RESERVED_COLLECTION_ID}" is reserved: its Metadata file name would be the Collection policy file's.`
+      `The Collection id "${collectionId}" is reserved by the PWS reserved path segment registry.`
     )
   }
 }
 
 /**
  * Builds the file name of a Space Metadata object's file:
- * `.space.<spaceId>.json`. Refuses the reserved Space id
- * ({@link RESERVED_SPACE_ID}).
+ * `.space.meta.<spaceId>.json`.
  * @param spaceId {string}
  * @returns {string}
  */
 export function spaceMetadataFileName(spaceId: string): string {
-  assertSpaceIdNotReserved(spaceId)
   return `${SPACE_FILE_PREFIX}${spaceId}${JSON_FILE_SUFFIX}`
 }
 
 /**
  * Builds the file name of a Collection Metadata object's file:
- * `.collection.<collectionId>.json`. The one file holds the whole merged
+ * `.collection.meta.<collectionId>.json`. The one file holds the whole merged
  * object: the configuration members beside `createdAt`, `updatedAt`,
- * `custom`, and `epoch`. Refuses the reserved Collection id
- * ({@link RESERVED_COLLECTION_ID}).
+ * `custom`, and `epoch`. Refuses a reserved Collection id.
  * @param collectionId {string}
  * @returns {string}
  */
@@ -368,8 +340,8 @@ export function isPolicyFileName(fileName: string): boolean {
  * Builds the file name of a Resource's metadata sidecar:
  * `.meta.<resourceId>.json`. A dot-file kept alongside the resource
  * representation in the Collection dir (the same convention as the policy and
- * `.collection.` dot-files), holding the timestamps and user-writable `custom`
- * object.
+ * `.collection.meta.` dot-files), holding the timestamps and user-writable
+ * `custom` object.
  * Inside a chunk directory the same builder names a chunk's version sidecar,
  * keyed by the stringified chunk index.
  * @param resourceId {string}
@@ -419,18 +391,14 @@ function parseAffixedFileName({
 }
 
 /**
- * Parses a Space Metadata file name (`.space.<spaceId>.json`) back into its
- * `spaceId`, reversing {@link spaceMetadataFileName}. The Space's own policy
- * file shares the `.space.` prefix, so it is excluded by name first.
+ * Parses a Space Metadata file name (`.space.meta.<spaceId>.json`) back into
+ * its `spaceId`, reversing {@link spaceMetadataFileName}.
  * @param fileName {string}
  * @returns {string | undefined}
  */
 export function parseSpaceMetadataFileName(
   fileName: string
 ): string | undefined {
-  if (fileName === SPACE_POLICY_FILE_NAME) {
-    return undefined
-  }
   return parseAffixedFileName({
     fileName,
     prefix: SPACE_FILE_PREFIX,
@@ -439,19 +407,15 @@ export function parseSpaceMetadataFileName(
 }
 
 /**
- * Parses a Collection Metadata file name (`.collection.<collectionId>.json`)
- * back into its `collectionId`, reversing
- * {@link collectionMetadataFileName}. The Collection's own policy file shares
- * the `.collection.` prefix, so it is excluded by name first.
+ * Parses a Collection Metadata file name
+ * (`.collection.meta.<collectionId>.json`) back into its `collectionId`,
+ * reversing {@link collectionMetadataFileName}.
  * @param fileName {string}
  * @returns {string | undefined}
  */
 export function parseCollectionMetadataFileName(
   fileName: string
 ): string | undefined {
-  if (fileName === COLLECTION_POLICY_FILE_NAME) {
-    return undefined
-  }
   return parseAffixedFileName({
     fileName,
     prefix: COLLECTION_FILE_PREFIX,
@@ -509,9 +473,8 @@ export type CollectionFileKind =
 
 /**
  * Classifies one file name inside a Space or Collection directory, for the
- * archive reader and the manifest builder alike. The two fixed policy names are
- * tested before the prefixes they share with the Metadata dot-files, so
- * `.collection.policy.json` is never read as a Collection Metadata file.
+ * archive reader and the manifest builder alike. Every dot-file kind has its
+ * own prefix or fixed name, so the tests below are order-independent.
  * @param fileName {string}   the entry's basename
  * @returns {CollectionFileKind}
  */

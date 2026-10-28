@@ -59,7 +59,7 @@ space/<spaceId>/.revocations/      the Space-scoped zcap revocation records;
 space/<spaceId>/.revocations/<record>.json
                                    absent when the Space has none
 space/<spaceId>/<file>             Space-level dot-files
-space/<spaceId>/.collection.<collectionId>.json
+space/<spaceId>/.collection.meta.<collectionId>.json
                                    a Collection tombstone; no directory for
                                    that Collection
 space/<spaceId>/<collectionId>/
@@ -68,13 +68,13 @@ space/<spaceId>/<collectionId>/.chunks.<encodedResourceId>/<chunkFile>
 ```
 
 A deleted Collection travels as a Collection tombstone (decision 0011 in the PWS
-spec repo). The tombstone is the Collection's `.collection.<id>.json` file,
+spec repo). The tombstone is the Collection's `.collection.meta.<id>.json` file,
 moved up into the Space directory, with no `<collectionId>/` directory beside
 it. Its body is the stored tombstone: `deleted: true`, the whole write stamp of
 the deleting write, and `_generation`, with no other member. The manifest lists
 the file in the Space's `contents` as
-`{ '.collection.<id>.json': { url: COLLECTION_URL, deleted: true } }`. A live
-Collection's entries carry no `deleted` member.
+`{ '.collection.meta.<id>.json': { url: COLLECTION_URL, deleted: true } }`. A
+live Collection's entries carry no `deleted` member.
 
 That entry is a file, a single-key object, in a list where every other object
 entry is a Collection directory. A consumer listing Collections from a Space's
@@ -254,19 +254,16 @@ manifest, which already lists every file.
   `deleted: true` in the manifest. Read with `collectionTombstoneFromFile`; told
   apart from a live object by `isCollectionTombstone`. Avoid: deleted Collection
   entry, Collection marker.
-- **Reserved Space id** -- the Space id `policy`. Refused by
-  `spaceMetadataFileName` and `packSpaceArchive` because its Space Metadata file
-  name would be `.space.policy.json`, the same name as the Space's own policy
-  file. Lives in `src/archive/resourceFileName.ts` (`RESERVED_SPACE_ID`,
-  `assertSpaceIdNotReserved`). Avoid: forbidden Space id, blocked id.
-- **Reserved Collection id** -- the Collection id `policy`. Refused by
+- **Reserved Collection id** -- a Collection id in storage-core's
+  `RESERVED_COLLECTION_IDS`, the PWS spec's reserved path segment registry
+  (`policy`, `meta`, `export`, and the rest). Refused by
   `collectionMetadataFileName` and `packSpaceArchive` (a top-level Collection
-  directory of that name) because its Collection Metadata file name would be
-  `.collection.policy.json`, the same name as the Collection policy file, so
-  neither a live Metadata file nor a tombstone for it could be named. The PWS
-  spec's reserved path segment registry already reserves it. Lives in
-  `src/archive/resourceFileName.ts` (`RESERVED_COLLECTION_ID`,
-  `assertCollectionIdNotReserved`). Avoid: forbidden Collection id, blocked id.
+  directory of that name). The file names themselves do not need the
+  reservation: the Metadata file is `.collection.meta.<collectionId>.json`,
+  apart from `.collection.policy.json` for every id. No Space id is reserved for
+  the same reason. The check lives in `src/archive/resourceFileName.ts`
+  (`assertCollectionIdNotReserved`); the set is storage-core's. Avoid: forbidden
+  Collection id, blocked id.
 
 ## Current State labels
 

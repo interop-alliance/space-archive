@@ -67,7 +67,7 @@ const pack = await packSpaceArchive({
   spaceId: 'zMySpace',
   entries: [
     {
-      name: '.space.zMySpace.json',
+      name: '.space.meta.zMySpace.json',
       bytes: new TextEncoder().encode('{"id":"zMySpace"}')
     }
   ]
@@ -95,14 +95,15 @@ per line) and the history log of the DID that signed them. They are written
 verbatim as `provenance.jsonl` and `did.jsonl`, after `service.json`, and both
 are listed in the manifest. This package neither signs nor verifies them.
 
-`packSpaceArchive` refuses the Space id `policy` (`RESERVED_SPACE_ID`), since
-its Space Metadata file name would collide with the Space's own policy file. It
-likewise refuses a top-level Collection directory named `policy`
-(`RESERVED_COLLECTION_ID`), and `collectionMetadataFileName('policy')` throws,
-since the Collection Metadata file name would be the Collection policy file's.
+`packSpaceArchive` refuses a top-level Collection directory whose name is a
+reserved Collection id, and `collectionMetadataFileName` throws for one; the set
+is `@interop/storage-core`'s `RESERVED_COLLECTION_IDS`, the PWS reserved path
+segment registry (`policy`, `meta`, `export`, and the rest). No Space id is
+reserved: the Space Metadata file is `.space.meta.<spaceId>.json`, apart from
+the Space's own `.space.policy.json` for every id.
 
 A deleted Collection is packed as a Collection tombstone: a top-level entry
-named `.collection.<collectionId>.json` whose body is the stored tombstone
+named `.collection.meta.<collectionId>.json` whose body is the stored tombstone
 (`deleted: true`, the whole write stamp, `_generation`, and no other member),
 with no Collection directory of that id. The manifest lists it with
 `deleted: true`. The packer refuses a tombstone body that
@@ -119,7 +120,7 @@ const pack = await packSpaceArchive({
   spaceId: 'zMySpace',
   entries: [
     {
-      name: '.collection.oldNotes.json',
+      name: '.collection.meta.oldNotes.json',
       bytes: new TextEncoder().encode(
         JSON.stringify({
           deleted: true,

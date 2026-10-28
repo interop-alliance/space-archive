@@ -1,6 +1,6 @@
 # Space Archive Roadmap (open items)
 
-nextAvailableId: 8
+nextAvailableId: 9
 
 Status as of 2026-09-18. Uses the formalized item structure shared with the
 freewallet and was-teaching-server roadmaps.
@@ -20,45 +20,6 @@ items move to [archived-roadmap.md](archived-roadmap.md) once shipped. Full
 conventions live in [AGENTS.md](AGENTS.md) under "Roadmap & Task Conventions".
 
 ---
-
-### SAR-1: Reserve the Space id `policy` across the contract's parties
-
-- status: todo
-- priority: medium
-- labels: contract, file-naming
-- touches:
-  - space-archive (this repo): shipped -- writer-side refusal in
-    `spaceMetadataFileName` and `packSpaceArchive` (via
-    `assertSpaceIdNotReserved`), the exported `RESERVED_SPACE_ID`, and this
-    repo's ARCHITECTURE.md (Glossary entry, invariant notes)
-  - portable-wallet-profile-spec: unresolved -- the normative layout text does
-    not state the reservation
-  - was-teaching-server: unresolved -- Space creation does not refuse the id
-    `policy`; its ARCHITECTURE.md / AGENTS.md
-  - wallet-backup: unresolved -- likely unaffected (it only reads Space archives
-    back), left open for confirmation
-- acceptance:
-  - [x] space-archive refuses the reserved Space id `policy` on the writing side
-        and exports `RESERVED_SPACE_ID`
-  - [ ] portable-wallet-profile-spec's normative layout text states that the
-        Space id `policy` is reserved
-  - [ ] was-teaching-server refuses creating a Space with the id `policy`, and
-        its ARCHITECTURE.md / AGENTS.md say so
-  - [ ] wallet-backup's impact is confirmed and its `touches:` entry above is
-        resolved (shipped or waived as unaffected)
-
-Context: the per-Space archive's file-name dialect names a Space's Metadata file
-`.space.<spaceId>.json`. When the Space id is `policy`, that name collides with
-the Space's own policy file, `.space.policy.json`. This package now refuses the
-id `policy` on the writing side (`spaceMetadataFileName`, `packSpaceArchive`)
-and exports `RESERVED_SPACE_ID` so a caller can check ahead of time. The
-reservation is not yet consistent across the parties that share this contract.
-The PWS reference server already reserves `policy` for Collection and Resource
-ids but not for Space ids, so a Space named `policy` can still be created there
-today, even though it can no longer be exported as a per-Space archive. The
-portable-wallet-profile-spec's normative layout text does not mention the
-reservation at all. `wallet-backup` only reads Space archives back, so it is
-likely unaffected, but that is unconfirmed.
 
 ### SAR-2: Packer accepts trees the reader can't place
 
