@@ -103,10 +103,12 @@ behavior change to a shared `@interop/*` API, so the CHANGELOG entry names it.
     writer), and its `src/migrate/archiveSurvey.ts` catches that throw after it
     has registered the Collection as a live encrypted app Collection; it needs
     to handle that case when it moves to 0.7.0
-  - portable-wallet-profile-spec: unaffected -- the profile does not yet carry
-    the per-Space archive's internal layout section (PWP-4)
-  - portable-web-spaces-spec: unresolved -- the Export and Import archive format
-    text names the tombstone entry and the manifest flag (its WASS-48)
+  - portable-wallet-profile-spec: unaffected -- the layout is core PWS text
+    (PWP-4 moved to portable-web-spaces-spec WASS-7 on 2026-10-29)
+  - portable-web-spaces-spec: resolved 2026-10-29 -- the Space Archive Format
+    section names the tombstone entry and the manifest `deleted` flag, and
+    the Import Space operation states the "only when absent" rule (WASS-7,
+    closing the archive box of its WASS-48)
 - acceptance:
   - [x] the packer writes a tombstone as `.collection.<collectionId>.json` in
         the Space directory with no Collection directory, and the manifest lists

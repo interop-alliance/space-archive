@@ -104,8 +104,9 @@ A chunk directory's entries are packed together. `packDirectory`
 (`src/archive/exportTar.ts`) writes the directory entry and then every file
 under it before any other entry, so no other entry falls between them. Where the
 directory sits relative to its Resource's representation file is not fixed. The
-profile spec now requires this contiguity of every writer, and a reader may
-refuse an archive that splits a directory. The migration in
+Portable Web Spaces spec's Space Archive Format section requires this
+contiguity of every writer, and a reader may refuse an archive that splits a
+directory. The migration in
 `@interop/wallet-backup` depends on it to buffer one Resource's chunks at a
 time.
 
