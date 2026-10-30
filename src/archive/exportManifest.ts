@@ -1,9 +1,10 @@
 /**
- * Builder for the Space-export `manifest.yml` document (UBC v0.1, FEP-6fcd).
- * Every caller synthesizes the same archive layout (`space/<spaceId>/...`
- * entries in the file-name dialect of `resourceFileName.ts`), whatever storage
- * it reads from, so an archive exported by one imports into another. This
- * module is the single home for the manifest that describes it.
+ * Builder for the Space-export `manifest.yml` document, the archive manifest
+ * the PWS spec's Space Archive Format section defines. Every caller
+ * synthesizes the same archive layout (`space/<spaceId>/...` entries in the
+ * file-name dialect of `resourceFileName.ts`), whatever storage it reads from,
+ * so an archive exported by one imports into another. This module is the
+ * single home for the manifest that describes it.
  */
 import {
   ARCHIVE_DID_LOG_FILE,
@@ -13,10 +14,9 @@ import {
   ARCHIVE_SPACE_DIR
 } from './archivePath.js'
 import {
-  UBC_MANIFEST_URL,
+  MANIFEST_URL,
   SPACE_URL,
   COLLECTION_URL,
-  RESOURCE_URL,
   POLICY_URL,
   META_URL
 } from './manifestUrls.js'
@@ -58,16 +58,16 @@ const MANIFEST_URL_BY_KIND: Partial<
   policy: POLICY_URL,
   resourcePolicy: POLICY_URL,
   collectionMetadata: COLLECTION_URL,
-  metaSidecar: META_URL,
-  representation: RESOURCE_URL
+  metaSidecar: META_URL
 }
 
 /**
  * Classifies one Collection-dir file name into its manifest entry: the known
- * dot-file kinds and resource representations get a documenting `url`, anything
- * else is listed by bare name. A chunk directory's child arrives as its
- * `<dirName>/<fileName>` path and is listed by that bare path. The classifier
- * reads basenames, so a path is not handed to it.
+ * dot-file kinds get a documenting `url`, anything else is listed by bare
+ * name. A Resource representation is user content whose shape the spec does
+ * not define, so it takes the bare-name form too. A chunk directory's child
+ * arrives as its `<dirName>/<fileName>` path and is listed by that bare path.
+ * The classifier reads basenames, so a path is not handed to it.
  * @param fileName {string}
  * @returns {unknown}
  */
@@ -94,7 +94,7 @@ function spaceManifestEntry(fileName: string): unknown {
 }
 
 /**
- * Builds the UBC v0.1 manifest object for a Space export. The caller supplies
+ * Builds the manifest object for a Space export. The caller supplies
  * the archive's top-level entries in the order they will be packed (Space-level
  * files interleaved with Collection directories); the manifest mirrors that
  * order. A Collection tombstone (a `.collection.meta.<collectionId>.json` file
@@ -142,9 +142,9 @@ export function buildExportManifest({
   return {
     'ubc-version': '0.1',
     contents: {
-      [ARCHIVE_MANIFEST_FILE]: { url: UBC_MANIFEST_URL },
-      // Listed by name with no documenting `url`: no specification section
-      // describes either entry yet.
+      [ARCHIVE_MANIFEST_FILE]: { url: MANIFEST_URL },
+      // Listed by name with no documenting `url`: the spec's root contents
+      // rule fixes both entries as `{}`.
       ...(provenance && { [ARCHIVE_PROVENANCE_FILE]: {} }),
       ...(didLog && { [ARCHIVE_DID_LOG_FILE]: {} }),
       [ARCHIVE_SPACE_DIR]: {

@@ -17,8 +17,12 @@ import {
   parseArchivePath,
   parseResourceFileName,
   parseSpaceMetadataFileName,
+  COLLECTION_URL,
+  MANIFEST_URL,
+  META_URL,
+  POLICY_URL,
   readSpaceArchive,
-  RESOURCE_URL,
+  SPACE_URL,
   SPACE_POLICY_FILE_NAME,
   spaceMetadataFileName,
   tarEntries
@@ -327,6 +331,23 @@ describe('packSpaceArchive and readSpaceArchive', () => {
     ).toEqual({ note: 'hello' })
   })
 
+  it('pins the documenting URLs the manifest names', async () => {
+    const archive = await readSpaceArchive(await packFixtureArchive())
+    // Wire text, so each is asserted by literal. The manifest's own entry is
+    // checked in place; the fixture tree carries no policy file, so POLICY_URL
+    // is pinned directly.
+    expect(archive.manifest.contents['manifest.yml']).toEqual({
+      url: 'https://w3id.org/pws#archive-manifest'
+    })
+    expect(MANIFEST_URL).toBe('https://w3id.org/pws#archive-manifest')
+    expect(SPACE_URL).toBe('https://w3id.org/pws#spaces')
+    expect(COLLECTION_URL).toBe(
+      'https://w3id.org/pws#collection-metadata-data-model'
+    )
+    expect(POLICY_URL).toBe('https://w3id.org/pws#access-control-policies')
+    expect(META_URL).toBe('https://w3id.org/pws#resource-metadata-data-model')
+  })
+
   it('packs a chunk directory in the order the manifest lists it', async () => {
     const bytes = new TextEncoder().encode('chunk')
     const archive = await readSpaceArchive(
@@ -366,8 +387,8 @@ describe('packSpaceArchive and readSpaceArchive', () => {
       'space/s1/c1/r.note%2E1.text%2Fplain.txt'
     ])
 
-    // A chunk directory's children are listed by bare path; the Resource's
-    // own representation carries its documenting url.
+    // A chunk directory's children and the Resource's own representation are
+    // all listed by bare name: user content has no documenting url.
     const space = archive.manifest.contents.space as {
       contents: Record<string, { contents: { c1: { contents: unknown[] } }[] }>
     }
@@ -375,9 +396,7 @@ describe('packSpaceArchive and readSpaceArchive', () => {
     expect(collection!.c1.contents).toEqual([
       '.chunks.note%2E1/.meta.0.json',
       '.chunks.note%2E1/r.0.text%2Fplain.txt',
-      {
-        'r.note%2E1.text%2Fplain.txt': { url: RESOURCE_URL }
-      }
+      'r.note%2E1.text%2Fplain.txt'
     ])
   })
 

@@ -46,7 +46,7 @@ the optional root entries `service.json`, `provenance.jsonl`, and `did.jsonl` in
 that order. A root entry placed later is treated as content.
 
 ```
-manifest.yml                       the UBC v0.1 manifest, always first
+manifest.yml                       the PWS archive manifest, always first
 service.json                       the exporting server's Service Description,
                                    verbatim; absent when the exporter gave none
 provenance.jsonl                   the exporting server's provenance statements,
@@ -104,11 +104,10 @@ A chunk directory's entries are packed together. `packDirectory`
 (`src/archive/exportTar.ts`) writes the directory entry and then every file
 under it before any other entry, so no other entry falls between them. Where the
 directory sits relative to its Resource's representation file is not fixed. The
-Portable Web Spaces spec's Space Archive Format section requires this
-contiguity of every writer, and a reader may refuse an archive that splits a
-directory. The migration in
-`@interop/wallet-backup` depends on it to buffer one Resource's chunks at a
-time.
+Portable Web Spaces spec's Space Archive Format section requires this contiguity
+of every writer, and a reader may refuse an archive that splits a directory. The
+migration in `@interop/wallet-backup` depends on it to buffer one Resource's
+chunks at a time.
 
 `service.json` is informational. It travels so an importer can read which
 specification versions and feature set the contents were written under -- an
@@ -180,12 +179,18 @@ manifest, which already lists every file.
    `events-universal`) call `require('events')` without declaring a package that
    provides it outside Node. A bundler resolves that call to the `events`
    package declared here. Without it the browser spec fails inside `tar-stream`.
-5. **Manifest URLs are permanent wire text.** The six exported URL constants
-   (`UBC_MANIFEST_URL`, `SPACE_URL`, `COLLECTION_URL`, `RESOURCE_URL`,
-   `POLICY_URL`, `META_URL`) are copied verbatim from the spec sections they
-   document and are never rewritten when a spec moves house. They were corrected
-   once, on 2026-09-20, because the five PWS ones named a host the spec is not
-   rendered at and two anchors it does not carry.
+5. **Manifest URLs are permanent wire text.** The five exported URL constants
+   (`MANIFEST_URL`, `SPACE_URL`, `COLLECTION_URL`, `POLICY_URL`, `META_URL`) are
+   the PWS spec's identifier (`https://w3id.org/pws`) with the anchor of the
+   section each documents as the fragment, as the spec's Space Archive Format
+   section fixes them. That form does not change when the spec moves house or a
+   section is renamed. The constants have been corrected twice. On 2026-09-20
+   the PWS ones named a host the spec is not rendered at and two anchors it does
+   not carry. On 2026-10-29 (SAR-9) the manifest's own entry stopped citing the
+   FEP-6fcd draft, a Resource representation lost its `url`, and the rest moved
+   from the rendered document's location to the spec identifier. An archive
+   written before either correction keeps its older URLs. The reader classifies
+   entries by path and compares no `url`.
 6. **Error names are the contract.** `BundleInvalidError` sets its own `name`,
    and a consumer in another package tells it apart by `err.name`, never by
    `instanceof`, since two copies of this package in one dependency tree carry
@@ -216,9 +221,11 @@ manifest, which already lists every file.
 
 ## Glossary
 
-- **Per-Space archive** -- the UBC v0.1 export tarball of a single Space, the
-  dialect the PWS reference server writes. Lives in `src/archive/`. Avoid: space
-  export, space dump, inner tar.
+- **Per-Space archive** -- the export tarball of a single Space in the layout
+  the PWS spec's Space Archive Format section defines, the dialect the PWS
+  reference server writes. Its manifest keeps an `ubc-version` member, fixed at
+  `"0.1"`, from the FEP-6fcd draft the layout was modelled on. Lives in
+  `src/archive/`. Avoid: space export, space dump, inner tar.
 - **Byte source** -- anything the reader accepts as input bytes: a `Uint8Array`,
   a web `ReadableStream`, or an async iterable of chunks. Lives in
   `src/stream.ts`. Avoid: input stream, reader, source stream.

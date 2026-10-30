@@ -4,6 +4,17 @@
 
 ### Changed
 
+- **Breaking:** the manifest's `url` values are the PWS spec's identifier with
+  the defining section's anchor as the fragment (`https://w3id.org/pws#...`), as
+  the spec's Space Archive Format section fixes them. The `manifest.yml` entry
+  cites `https://w3id.org/pws#archive-manifest` in place of the FEP-6fcd URL,
+  and `MANIFEST_URL` replaces `UBC_MANIFEST_URL`. A Resource representation is
+  listed as a bare name with no `url`, and `RESOURCE_URL` is removed.
+  `SPACE_URL`, `COLLECTION_URL`, `POLICY_URL`, and `META_URL` move from the
+  `w3c-ccg.github.io` location to the identifier. Archives written by an older
+  version keep their old `url` values; the reader compares none. Both fixtures
+  are repacked (SAR-9).
+
 - **Breaking:** the provenance fixture's statements carry `didVersionId`, the
   member the PWS spec's Archive provenance section fixes for the version of the
   signing DID's document that lists the signing key, in place of

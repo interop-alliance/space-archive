@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Interop Alliance. All rights reserved.
  */
 /**
- * The reader half of the per-Space archive codec: a UBC v0.1 Space export tar
+ * The reader half of the per-Space archive codec: a per-Space archive tar
  * in, its `manifest.yml` plus a lazy cursor over its entries out. The writer
  * (`exportTar.ts`) packs the manifest first, so the manifest is in hand before
  * a single content entry is read and the rest of the archive stays a stream --
@@ -30,8 +30,8 @@ import { CollectionForms } from './collectionForms.js'
 
 /**
  * A Space archive's `manifest.yml`, as parsed. Only the two members the reader
- * relies on are named: `contents` is the FEP-6fcd tree the writer built, read
- * for the Space id and otherwise passed through to the caller.
+ * relies on are named: `contents` is the entry tree the writer built,
+ * read for the Space id and otherwise passed through to the caller.
  */
 export interface SpaceArchiveManifest {
   'ubc-version': string

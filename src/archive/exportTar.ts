@@ -1,13 +1,14 @@
 /**
- * Packer for a Space export archive: turns an ordered entry tree into the UBC
- * v0.1 tarball (`manifest.yml`, the exporting server's `service.json` where it
- * has one, its `provenance.jsonl` and `did.jsonl` where it signed the export,
- * and the `space/<spaceId>/` tree). Every caller describes the same archive
- * dialect (the file names built by `resourceFileName.ts`, positioned by the
- * path grammar in `archivePath.ts`), whatever storage it reads from, so an
- * archive exported by one imports into another. This module is the single
- * home for the packing itself, and it derives the manifest from the very tree
- * it packs so the two can never drift apart. Before a pack is created,
+ * Packer for a Space export archive: turns an ordered entry tree into the
+ * per-Space archive tarball (`manifest.yml`, the exporting server's
+ * `service.json` where it has one, its `provenance.jsonl` and `did.jsonl`
+ * where it signed the export, and the `space/<spaceId>/` tree). Every caller
+ * describes the same archive dialect (the file names built by
+ * `resourceFileName.ts`, positioned by the path grammar in `archivePath.ts`),
+ * whatever storage it reads from, so an archive exported by one imports into
+ * another. This module is the single home for the packing itself, and it
+ * derives the manifest from the very tree it packs so the two can never drift
+ * apart. Before a pack is created,
  * `packSpaceArchive` checks the caller's tree through `archivePath.ts`'s
  * `buildArchivePath`, refusing a shape the reader's `parseArchivePath` could
  * not place.
