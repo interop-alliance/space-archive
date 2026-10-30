@@ -1,6 +1,6 @@
 # @interop/space-archive Changelog
 
-## 0.11.1 - TBD
+## 0.11.1 - 2026-10-30
 
 ### Added
 
