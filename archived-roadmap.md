@@ -308,3 +308,38 @@ id from the file name and cross-checks it against the directory, so the
 id-bearing form keeps that check intact. This is a change to the layout's shape,
 so it is a full pass over the "Parties to this contract" table in AGENTS.md and
 a breaking release of this package.
+
+### SAR-10: Provenance fixture carries `didVersionId`
+
+- status: done 2026-10-29
+- priority: medium
+- labels: contract, provenance, fixtures
+- discovered-from: portable-web-spaces-spec WASS-7 (2026-10-29)
+- touches:
+  - space-archive (this repo): shipped 2026-10-29, unpublished (0.11.0) --
+    `provenance.jsonl` re-signed by the server's export of the tree, both
+    fixture archives repacked; nothing in `src/`, `test/`, `generate.ts` or
+    ARCHITECTURE.md named the member, so no other edit; CHANGELOG.md
+  - was-teaching-server: WAS-236 shipped 2026-10-29 (the writer and verifier of
+    the member, and the only signer that can regenerate the fixture)
+  - wallet-backup: unaffected (it does not verify provenance and names no
+    statement member)
+  - portable-web-spaces-spec: resolved 2026-10-29 -- the Archive provenance
+    section and the did:webvh archive signer profile use `didVersionId`
+- acceptance:
+  - [x] the checked-in `provenance.jsonl` statements carry `didVersionId` and no
+        `didLogVersionId`, with proofs that verify over the renamed member
+  - [x] `generate.ts` writes the new member when it regenerates the fixture (it
+        packs the checked-in body verbatim)
+  - [x] nothing in `src/` or `test/` names `didLogVersionId`
+  - [x] CHANGELOG entry names the fixture regeneration
+
+Context: each provenance statement in an export names the version of the signing
+DID's document that lists the signing key. The member was `didLogVersionId`,
+which is did:webvh vocabulary. The PWS spec made the provenance text
+method-neutral on 2026-10-29 and renamed the member to `didVersionId`, leaving
+the did:webvh meaning (the log entry's `versionId`) to a signer profile in the
+spec's DID method registry. The fixture archive carries signed statements under
+the old name. A rename changes the signed bytes, so the fixture cannot be edited
+in place. It has to be re-signed by the reference server once that server writes
+the new member.

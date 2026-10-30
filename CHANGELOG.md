@@ -1,5 +1,17 @@
 # @interop/space-archive Changelog
 
+## 0.11.0 - TBD
+
+### Changed
+
+- **Breaking:** the provenance fixture's statements carry `didVersionId`, the
+  member the PWS spec's Archive provenance section fixes for the version of the
+  signing DID's document that lists the signing key, in place of
+  `didLogVersionId`. The statements are re-signed by the PWS reference server's
+  export of the same tree, so their proofs verify over the renamed member, and
+  `fixtures/space-archive-provenance.tar` is repacked. This package packs the
+  body verbatim and reads no statement member, so nothing in `src/` changes.
+
 ## 0.10.0 - 2026-10-27
 
 ### Changed

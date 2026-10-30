@@ -1,6 +1,6 @@
 # Space Archive Roadmap (open items)
 
-nextAvailableId: 9
+nextAvailableId: 11
 
 Status as of 2026-09-18. Uses the formalized item structure shared with the
 freewallet and was-teaching-server roadmaps.
@@ -106,9 +106,9 @@ behavior change to a shared `@interop/*` API, so the CHANGELOG entry names it.
   - portable-wallet-profile-spec: unaffected -- the layout is core PWS text
     (PWP-4 moved to portable-web-spaces-spec WASS-7 on 2026-10-29)
   - portable-web-spaces-spec: resolved 2026-10-29 -- the Space Archive Format
-    section names the tombstone entry and the manifest `deleted` flag, and
-    the Import Space operation states the "only when absent" rule (WASS-7,
-    closing the archive box of its WASS-48)
+    section names the tombstone entry and the manifest `deleted` flag, and the
+    Import Space operation states the "only when absent" rule (WASS-7, closing
+    the archive box of its WASS-48)
 - acceptance:
   - [x] the packer writes a tombstone as `.collection.<collectionId>.json` in
         the Space directory with no Collection directory, and the manifest lists
@@ -145,3 +145,71 @@ the manifest is built. The manifest flag is descriptive, as the rest of the
 manifest's `contents` is, so the reader does not check it against the entries.
 The fixtures are left alone: the provenance fixture carries signed statements
 only the server can re-sign, and in-test trees cover the form.
+
+### SAR-9: Align the manifest's url values with the PWS spec
+
+- status: todo
+- priority: medium
+- labels: contract, manifest, writer
+- discovered-from: portable-web-spaces-spec WASS review of the Space Archive
+  Format section (2026-10-29)
+- touches:
+  - space-archive (this repo): unresolved -- `UBC_MANIFEST_URL` and
+    `RESOURCE_URL` in `src/archive/manifestUrls.ts` and their use in
+    `src/archive/exportManifest.ts`; the module comment there, which says the
+    URLs were copied from the server and are never rewritten; tests that assert
+    the manifest's own entry; this repo's ARCHITECTURE.md (the layout table's
+    "UBC v0.1 manifest" line) and CHANGELOG.md
+  - was-teaching-server: unresolved -- likely unaffected (it packs through
+    `packSpaceArchive` and nothing in its source names the FEP URL), left open
+    for confirmation once it picks up the new version; its ARCHITECTURE.md
+  - wallet-backup: unresolved -- likely unaffected (reader only; the manifest is
+    descriptive and the reader classifies entries by path), left open for
+    confirmation
+  - portable-web-spaces-spec: resolved 2026-10-29 -- the Space Archive Format
+    section's manifest example and root `contents` prose name the spec's own
+    Archive manifest section as the `manifest.yml` entry's `url`, list a
+    Resource representation as a bare name, and drop `#resource-data-model` from
+    the permanent-anchor lists; the FEP is now only an editorial note crediting
+    the inspiration
+- acceptance:
+  - [ ] the packer writes
+        `https://w3c-ccg.github.io/portable-web-spaces-spec/#archive-manifest`
+        as the `url` of the `manifest.yml` entry, and no FEP URL appears in the
+        archive
+  - [ ] the packer lists a Resource representation entry as a bare name, with no
+        `url`, and `RESOURCE_URL` is removed
+  - [ ] `src/archive/manifestUrls.ts` no longer names FEP-6fcd, and its module
+        comment states that the PWS spec, not the server, is the source of the
+        documenting URLs
+  - [ ] a test asserts the manifest's own entry carries the spec URL
+  - [ ] ARCHITECTURE.md describes the manifest as the PWS archive manifest
+        rather than "the UBC v0.1 manifest"
+  - [ ] the CHANGELOG entry names the change as wire text that readers of older
+        archives may still see under the FEP URL
+
+Context: the `manifest.yml` entry in every exported archive carries a `url` that
+names the section of a specification describing it. Today that URL points at the
+manifest-file section of FEP-6fcd, the Fediverse Enhancement Proposal whose
+Unified Backup Container layout the archive format was modelled on. The PWS spec
+now defines the archive format itself, in its Space Archive Format section, and
+keeps the FEP only as an editorial note on where the layout came from. The FEP
+is an unofficial draft in a community repository, so an archive should not cite
+it as the specification of its own manifest. The spec's manifest example and
+prose already name the spec's Archive manifest section as that `url`, so the
+packer disagrees with the spec until this lands.
+
+The `ubc-version` member stays. The spec keeps it, with the value `"0.1"`, as
+the one thing retained from the FEP draft. The spec also stopped giving a
+Resource representation entry a `url`: a representation is user content whose
+shape the spec does not define, so the spec lists it as a bare name and no
+longer counts `#resource-data-model` among the anchors the manifest keeps
+permanent. The packer writes `RESOURCE_URL` on every representation today, so
+that goes too. The other four documenting URLs (Spaces, Collection Metadata,
+Resource Metadata, policy) already point at the PWS spec and are untouched.
+
+This is a wire-text change. An archive written before it carries the FEP URL and
+one written after carries the spec URL. The reader does not check the manifest's
+`url` values (the manifest is descriptive and entries are classified by path),
+so both archives read the same way, but a consumer that compares manifests byte
+for byte will see the difference. Older archives are not rewritten.
