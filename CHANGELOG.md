@@ -1,5 +1,11 @@
 # @interop/space-archive Changelog
 
+## 0.11.1 - TBD
+
+### Added
+
+- Update to latest `storage-core@0.43.0` (`exportSigningMethod` rename).
+
 ## 0.11.0 - 2026-10-29
 
 ### Changed
