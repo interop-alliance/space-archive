@@ -83,8 +83,8 @@ behavior change to a shared `@interop/*` API, so the CHANGELOG entry names it.
 - status: in-progress
 - priority: medium
 - labels: contract, archive-layout, writer, reader, metadata-file
-- discovered-from: was-teaching-server WAS-174 (2026-10-03)
-- design: was-teaching-server `designs/WAS-96-multi-primary-spaces.md` (section
+- discovered-from: was-teaching-server WSS-174 (2026-10-03)
+- design: was-teaching-server `designs/WSS-96-multi-primary-spaces.md` (section
   5.4 and wire item 16), with decision 0011 in the PWS spec repo
 - touches:
   - space-archive (this repo): shipped 2026-10-03, unpublished (0.7.0) -- the
@@ -96,7 +96,7 @@ behavior change to a shared `@interop/*` API, so the CHANGELOG entry names it.
     `collectionMetadataFromFile` refusing a tombstone body; ARCHITECTURE.md
     (archive layout, layer map, Glossary), README and CHANGELOG.md
   - was-teaching-server: unresolved -- both backends export a tombstoned
-    Collection in this form and import it (its WAS-174); its ARCHITECTURE.md
+    Collection in this form and import it (its WSS-174); its ARCHITECTURE.md
   - wallet-backup: unresolved -- its survey still skips the tombstone in the
     Space directory, but `collectionMetadataFromFile` now throws on a
     `deleted: true` body inside a Collection directory (an archive from another

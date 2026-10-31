@@ -115,7 +115,7 @@ discovered-from: freewallet FW-530.
     and README
   - was-teaching-server: shipped -- both backends sign one statement per
     exported object into `provenance.jsonl` and embed the server's log snapshot
-    as `did.jsonl` (its WAS-165); its counterpart test pins both entries against
+    as `did.jsonl` (its WSS-165); its counterpart test pins both entries against
     the new fixture
   - wallet-backup: unaffected -- it reads Space archives through
     `readSpaceArchive`, which consumes the new root entries before the walk it
@@ -143,7 +143,7 @@ Both sit beside `manifest.yml` and `service.json` and are listed in the
 manifest. This codec only carries them. Verification is the importer's (the
 server's import side, and any wallet that chooses to check).
 
-discovered-from: was-teaching-server WAS-165.
+discovered-from: was-teaching-server WSS-165.
 
 The entries are listed in the manifest with no documenting `url`, since no
 specification section describes either yet. Their bodies in the second fixture
@@ -155,7 +155,7 @@ package holds no signing code.
 - status: done 2026-10-03
 - priority: medium
 - labels: contract, metadata-file, fixtures
-- discovered-from: was-teaching-server WAS-172 (2026-10-03)
+- discovered-from: was-teaching-server WSS-172 (2026-10-03)
 - touches:
   - space-archive (this repo): shipped 2026-10-03, unpublished (0.6.0) --
     `metadataFile.ts` strips `_generation` alone, with its test and the README
@@ -199,7 +199,7 @@ therefore no longer matches `fixtures/space-archive-provenance.tar` byte for
 byte, and its counterpart case is marked as expected to fail until this lands.
 
 The Collection tombstone form is a separate dialect change, tracked by the
-server's WAS-174.
+server's WSS-174.
 
 ### SAR-1: Reserve the Space id `policy` across the contract's parties
 
@@ -258,7 +258,7 @@ item shipped was taken back out, and its open boxes are unmet by design.
     `fixtures/space-archive-provenance.tar`, ARCHITECTURE.md (archive layout
     map, Glossary: Reserved Space id removed, Reserved Collection id reworded),
     README, the breaking CHANGELOG entry
-  - was-teaching-server: shipped 2026-10-27 as its WAS-233 (0.43.0 TBD) -- the
+  - was-teaching-server: shipped 2026-10-27 as its WSS-233 (0.43.0 TBD) -- the
     filesystem store's on-disk names follow the package's builders, so it gained
     layout step 9 (refuses a store holding a Metadata file under an old name);
     the import, export provenance, Space projection and tombstone modules, the
@@ -320,7 +320,7 @@ a breaking release of this package.
     `provenance.jsonl` re-signed by the server's export of the tree, both
     fixture archives repacked; nothing in `src/`, `test/`, `generate.ts` or
     ARCHITECTURE.md named the member, so no other edit; CHANGELOG.md
-  - was-teaching-server: WAS-236 shipped 2026-10-29 (the writer and verifier of
+  - was-teaching-server: WSS-236 shipped 2026-10-29 (the writer and verifier of
     the member, and the only signer that can regenerate the fixture)
   - wallet-backup: unaffected (it does not verify provenance and names no
     statement member)
@@ -359,7 +359,7 @@ the new member.
     `test/node/archive.test.ts` asserts the manifest's own entry; both fixtures
     repacked; ARCHITECTURE.md (layout table, invariant 5, Glossary) and
     CHANGELOG.md updated
-  - was-teaching-server: handed off 2026-10-29 to WAS-237 -- it packs through
+  - was-teaching-server: handed off 2026-10-29 to WSS-237 -- it packs through
     `packSpaceArchive`, so its exports follow this change on upgrade, but
     `test/storage.test.ts:183` asserts the old `github.io` Spaces URL and its
     counterpart fixture test compares against the repacked fixtures; both need

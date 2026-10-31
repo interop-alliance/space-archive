@@ -1,5 +1,14 @@
 # @interop/space-archive Changelog
 
+## 0.12.0 - TBD
+
+### Changed
+
+- **Breaking:** `@interop/storage-core` is a peer dependency (`>=0.41.0 <1.0.0`)
+  instead of a regular dependency. Consumers install it themselves, so the
+  `PolicyDocument`, `WriteStamp` and `CollectionGenerator` types this package
+  returns resolve to the consumer's own copy.
+
 ## 0.11.1 - 2026-10-30
 
 ### Added

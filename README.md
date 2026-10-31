@@ -43,8 +43,12 @@ TBD
 To install via PNPM:
 
 ```
-pnpm install @interop/space-archive
+pnpm install @interop/space-archive @interop/storage-core
 ```
+
+`@interop/storage-core` is a peer dependency. This package returns its
+`PolicyDocument`, `WriteStamp` and `CollectionGenerator` types, so the consumer
+installs one copy that both share.
 
 ### Development
 
